@@ -1,42 +1,45 @@
 # EMA-Crossover-Backtesting-Engine
-### Notes:
-Moving average -> avg of series of data points to identifiy overall trends
 
-SMA (Simple moving avg) -> mean + equal weights
+## Overview
+This project implements an EMA (Exponential Moving Average) crossover trading strategy with backtesting capabilities to evaluate performance against a buy-and-hold strategy.
 
-EMA (Exponential moving avg) -> mean + variable weights (recent = more)
+## Concepts
 
-Used in combination to avoid false signals
+### Moving Averages
+- **Moving Average**: Average of a series of data points to identify overall trends
+- **SMA (Simple Moving Average)**: Mean with equal weights for all data points
+- **EMA (Exponential Moving Average)**: Mean with variable weights (recent data weighted more)
+- Used in combination to avoid false signals
 
-<div>
+### EMA Crossover Strategy
+- Uses 2 EMAs (fast and slow) to signal trends
+- **EMAs Used**: EMA12 (fast), EMA128 (medium), EMA200 (slow)
+- EMA calculated using `ewm` function from pandas instead of manual formula
+- **EMA12**: Shows short-term trends
+- **EMA200**: Shows long-term trends
 
-EMA crossover -> 2 EMAs - fast and slow - to signal trends
+### Trading Signals
+- **Golden Cross**: Bull market signal when short-term EMA crosses above long-term EMA → **Buy**
+- **Death Cross**: Bear market signal when short-term EMA crosses below long-term EMA → **Sell**
 
+### Backtesting
+- Simulates trades on historical data
+- Shows profit percentage difference between algorithm performance vs bought-and-held value
+- **Note**: Not 100% reliable due to the random walk theory, which states that stock prices fluctuate randomly (not based on history) and cannot be predicted
 
-EMA used -> EMA12, EMA128, and EMA200
-            fast   medium      slow
+## Exploration & Results
 
-<div>
+### Initial Backtest
+- Strategy: EMA12 and EMA128 crossover
+- Asset: BTC-USD
+- Result: 72.9% profit
 
-EMA calculated using ewm fn from pandas instead of formula
+### Improved Strategy
+- Created EMA50 and backtested EMA50 and EMA200 crossover
+- Asset: BTC-USD
+- Result: 80% profit (improvement over initial 72.9%)
 
-EMA12 is used to show short term trends
-
-EMA200 is used to show long term trends
-
-<div>
-
-Golden cross -> bull market [short term goes above long term] -> buy
-
-Death cross -> bear market [long term goes aboce short term] -> sell
-
-<div>
-
-Backtesting -> trades on historic data and shows the difference between the profit percentage of the algorithm vs the bought and held value
-
-This is not reliable due to the random walk theory that states that stock prices fluctuate randomly, not based on history, and hence, cannot be predicted
-
-### Exploration:
-Created a new EMA - EMA50 - and backtested the crossover of the EMA50 and EMA200 for BTC-USD improving the percentage profit from 72.9% to 80% in comparision to the EMA12 and EMA128 used in the initial backtest
-
-Further increased the date range to include 2025 to get 207.4% profit from the algorithm over 98% from the bought and held strategy
+### Extended Date Range
+- Further increased date range to include 2025
+- **Algorithm Performance**: 207.4% profit
+- **Buy-and-Hold Strategy**: 98% profit
