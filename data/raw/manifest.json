@@ -1,0 +1,98 @@
+{
+  "BTC-USD": {
+    "fetched": "2026-10-29",
+    "first": "2014-09-17",
+    "last": "2026-10-29",
+    "rows": 4425,
+    "source": "yahoo"
+  },
+  "DBC": {
+    "fetched": "2026-10-29",
+    "first": "2006-02-06",
+    "last": "2026-10-28",
+    "rows": 5215,
+    "source": "yahoo"
+  },
+  "EEM": {
+    "fetched": "2026-10-29",
+    "first": "2003-04-14",
+    "last": "2026-10-28",
+    "rows": 5924,
+    "source": "yahoo"
+  },
+  "EFA": {
+    "fetched": "2026-10-29",
+    "first": "2001-08-27",
+    "last": "2026-10-28",
+    "rows": 6330,
+    "source": "yahoo"
+  },
+  "FRED:DTB3": {
+    "fetched": "2026-10-29",
+    "rows": 18997,
+    "source": "fred"
+  },
+  "GLD": {
+    "fetched": "2026-10-29",
+    "first": "2004-11-18",
+    "last": "2026-10-28",
+    "rows": 5520,
+    "source": "yahoo"
+  },
+  "IEF": {
+    "fetched": "2026-10-29",
+    "first": "2002-07-30",
+    "last": "2026-10-28",
+    "rows": 6102,
+    "source": "yahoo"
+  },
+  "IWM": {
+    "fetched": "2026-10-29",
+    "first": "2000-05-26",
+    "last": "2026-10-28",
+    "rows": 6645,
+    "source": "yahoo"
+  },
+  "NVDA": {
+    "fetched": "2026-10-29",
+    "first": "1999-01-22",
+    "last": "2026-10-28",
+    "rows": 6985,
+    "source": "yahoo"
+  },
+  "QQQ": {
+    "fetched": "2026-10-29",
+    "first": "1999-03-10",
+    "last": "2026-10-28",
+    "rows": 6953,
+    "source": "yahoo"
+  },
+  "SPY": {
+    "fetched": "2026-10-29",
+    "first": "1993-01-29",
+    "last": "2026-10-28",
+    "rows": 8495,
+    "source": "yahoo"
+  },
+  "TLT": {
+    "fetched": "2026-10-29",
+    "first": "2002-07-30",
+    "last": "2026-10-28",
+    "rows": 6102,
+    "source": "yahoo"
+  },
+  "VNQ": {
+    "fetched": "2026-10-29",
+    "first": "2004-09-29",
+    "last": "2026-10-28",
+    "rows": 5556,
+    "source": "yahoo"
+  },
+  "^VIX": {
+    "fetched": "2026-10-29",
+    "first": "1990-01-02",
+    "last": "2026-10-28",
+    "rows": 9276,
+    "source": "yahoo"
+  }
+}
