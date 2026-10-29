@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trendlab"
+version = "0.2.0"
+description = "A bias-aware backtesting engine and research study of EMA-crossover trend following"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Ashvik Mishra", email = "ashvikmishra.mit@gmail.com" }]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "pyarrow>=14",
+    "yfinance>=0.2.54",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "jupyter", "nbconvert"]
+
+[project.scripts]
+trendlab = "trendlab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY"]
+ignore = ["E501"]
