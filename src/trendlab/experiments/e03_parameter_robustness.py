@@ -22,8 +22,6 @@ The README's Bitcoin "tuning" story (EMA12/128 first, then 50/200 as an
 
 from __future__ import annotations
 
-import time
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -366,7 +364,6 @@ def _logit_chart(studies: dict, path, title: str, subtitle: str) -> None:
 
 
 def run(ctx: Context) -> Section:
-    t0 = time.time()
     n_blocks = 8 if ctx.quick else 16
     n_boot = 400 if ctx.quick else 2000
     studies = {tk: _asset_study(ctx, tk, n_blocks, n_boot) for tk in ASSETS}
@@ -686,12 +683,31 @@ def run(ctx: Context) -> Section:
         else f"Only {', '.join(gain_sig)} has a 95% interval above zero"
     )
 
+    # sections 2 and 9 run 50/200 on each asset's full history (200-bar warm-up only);
+    # this grid's common window waits for the 400-bar EMA, so its 50/200 Sharpes differ
+    full = {}
+    for tk in ("SPY", "QQQ"):
+        res, _ = ctx.pair(tk, TEXTBOOK)
+        full[tk] = {
+            "start": res.start.date().isoformat(),
+            "sharpe": float(metrics.sharpe(res.returns, res.rf, res.periods_per_year)),
+        }
+    qqq_skips_bust = full["QQQ"]["start"] < "2002-01-01" and q["start"] > "2002-10-09"
+    window_txt = (
+        f" The common window starts later than the full histories of sections 2 and 9, "
+        f"because it waits for the {SLOW[-1]}-bar EMA (SPY from {s['start']} instead of "
+        f"{full['SPY']['start']}, QQQ from {q['start']} instead of {full['QQQ']['start']}), "
+        f"so 50/200's Sharpe here differs from theirs: SPY {s['tb_sharpe']:.2f} vs "
+        f"{full['SPY']['sharpe']:.2f}, QQQ {q['tb_sharpe']:.2f} vs {full['QQQ']['sharpe']:.2f}"
+        + ("; QQQ's window excludes the 2001-02 decline." if qqq_skips_bust else ".")
+    )
+
     def _ci(r: dict) -> str:
         return f"{r['tb_sharpe_gain']:+.2f} [{r['tb_sharpe_gain_ci_low']:+.2f}, {r['tb_sharpe_gain_ci_high']:+.2f}]"
 
     text = f"""**Question.** Is EMA50/200 a robust choice on a plateau of similar rules, or a lucky cell that does not survive the grid search?
 
-**Setup.** {s["n_configs"]} EMA crossovers (fast {FAST[0]}-{FAST[-1]}, slow {SLOW[0]}-{SLOW[-1]}) on SPY, QQQ and BTC, default settings, one common window per asset after the slowest EMA warms up ({s["start"][:4]} / {q["start"][:4]} / {b["start"][:4]} to {s["end"][:4]}). Nulls: "Sharpe over T-bills = 0" and "mean return minus buy-and-hold's = 0" (PSR/DSR, CSCV PBO with S = {n_blocks}); a paired stationary bootstrap compares 50/200's Sharpe with buy-and-hold's.
+**Setup.** {s["n_configs"]} EMA crossovers (fast {FAST[0]}-{FAST[-1]}, slow {SLOW[0]}-{SLOW[-1]}) on SPY, QQQ and BTC, default settings, one common window per asset after the slowest EMA warms up ({s["start"][:4]} / {q["start"][:4]} / {b["start"][:4]} to {s["end"][:4]}). Nulls: "Sharpe over T-bills = 0" and "mean return minus buy-and-hold's = 0" (PSR/DSR, CSCV PBO with S = {n_blocks}); a paired stationary bootstrap compares 50/200's Sharpe with buy-and-hold's.{window_txt}
 
 **Findings.**
 
@@ -707,7 +723,6 @@ def run(ctx: Context) -> Section:
     results = {
         "n_configs": int(s["n_configs"]),
         "n_blocks": int(n_blocks),
-        "runtime_s": round(time.time() - t0, 1),
     }
     for tk, r in rows.items():
         k = LABEL[tk].lower()
@@ -743,6 +758,9 @@ def run(ctx: Context) -> Section:
             results[f"{k}_{key}"] = int(v) if key == "tb_rank" else float(v)
         results[f"{k}_best_config"] = str(r["best_config"])
         results[f"{k}_start"] = str(r["start"])
+    for tk, f in full.items():
+        results[f"{LABEL[tk].lower()}_full_history_start"] = f["start"]
+        results[f"{LABEL[tk].lower()}_full_history_tb_sharpe"] = f["sharpe"]
     results["btc_ema12_128_sharpe"] = float(bt[0]["sharpe"])
     results["btc_ema50_200_sharpe"] = float(bt[1]["sharpe"])
     results["btc_ema12_128_grid_percentile"] = float(bt[0]["grid_percentile"])

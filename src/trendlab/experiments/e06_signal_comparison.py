@@ -231,6 +231,10 @@ def _median_sharpe_figure(sh: pd.DataFrame, path) -> None:
 # --------------------------------------------------------------------------- run
 
 
+def _join(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
 def _run_asset(ctx: Context, ticker: str, sigs: dict[str, Strategy]) -> dict[str, BacktestResult]:
     start = evaluation_start(ctx.prices(ticker), list(sigs.values()), ctx.config(ticker).start)
     return {name: ctx.backtest(ticker, s, start=start) for name, s in sigs.items()}
@@ -482,7 +486,16 @@ def run(ctx: Context) -> Section:
     band_tr = raw.loc["EMA50/200 ±2% band", "n_trades"]
     ema_tr = raw.loc[EMA, "n_trades"]
     least_trades = raw.loc[trend_names, "trades_per_year"].idxmin()
-    most_whip = raw.loc[trend_names, "n_whipsaws"].astype(float).idxmax()
+    whips = raw.loc[trend_names, "n_whipsaws"].astype(float)
+    most_whip = whips[whips == whips.max()].index.tolist()
+    whip_loss = [f"{raw.loc[n, 'whipsaw_loss']:.0%}" for n in most_whip]
+    whip_bit = (
+        f"{most_whip[0]} has the most whipsaws (losing trips under 3 months: "
+        f"{whips.max():.0f}, compounding to {whip_loss[0]})"
+        if len(most_whip) == 1
+        else f"{_join(most_whip)} tie for the most whipsaws (losing trips under 3 months: "
+        f"{whips.max():.0f} each, compounding to {_join(whip_loss)} respectively)"
+    )
     trade_bit = f"the ±2% band cuts SPY round trips from {ema_tr:.0f} to {band_tr:.0f}" + (
         "" if least_trades == "EMA50/200 ±2% band" else f"; {least_trades} trades least"
     )
@@ -504,6 +517,27 @@ def run(ctx: Context) -> Section:
     ci_cmp = "wider than" if ci_w > spread else "narrower than"
     lag_gap = abs(e_ks["mean_lag"] - t_ks["mean_lag"])
     rho_ts = float(spy_exp_corr.loc[EMA, "TSMOM 12M"])
+    peer_corr = spy_exp_corr.loc[EMA, [n for n in ma_like if n != EMA]]
+    far = [n for n in ks.index if n != EMA and abs(ks.loc[n, "mean_lag"] - e_ks["mean_lag"]) > 30]
+    rho_far = spy_exp_corr.loc[EMA, far]
+    far_txt = _join([f"{n} ({rho_far[n]:.2f})" for n in far])
+    horizon_bit = (
+        f" On SPY, EMA50/200's exposure correlates {peer_corr.min():.2f}-{peer_corr.max():.2f} "
+        f"with the other MA and TSMOM rules and {rho_ts:.2f} with TSMOM 12M"
+    )
+    if not far:
+        horizon_bit += "."
+    elif rho_ts > rho_far.max() + 0.05:
+        horizon_bit += (
+            f", clearly above its correlation with {far_txt}, whose mean lags differ by more "
+            "than 30 days, consistent with the shared horizon."
+        )
+    else:
+        cmp = "about as closely as" if rho_ts >= rho_far.max() - 0.05 else "less closely than"
+        horizon_bit += (
+            f", {cmp} with {far_txt}, whose mean lags differ by more than 30 days, so a "
+            "matched horizon alone does not explain the overlap."
+        )
 
     text = f"""**Question.** Is EMA50/200 a special choice, or one member of a family of trend rules that all make the same bet?
 
@@ -514,7 +548,7 @@ def run(ctx: Context) -> Section:
 - **{noise_head}:** {n_sig} of {len(boot)} Sharpe differences vs EMA50/200 have a 95% CI excluding zero; the median CI is {ci_w:.2f} wide, {ci_cmp} the whole {spread:.2f} spread between the rules.
 - **Across ETFs:** median Sharpe is {med_sh[BNH]:.2f} for buy & hold vs {med_sh[worst_x]:.2f} ({worst_x}) to {med_sh[best_x]:.2f} ({best_x}) for the rules; EMA50/200 beats buy & hold's Sharpe in {beats_ema} of {len(tickers)} ETFs. Median max drawdown falls from {xsum.loc[BNH, "median_max_drawdown"]:.0%} to between {xsum.loc[trend_names, "median_max_drawdown"].max():.0%} and {xsum.loc[trend_names, "median_max_drawdown"].min():.0%}.
 - **Same bet:** on SPY the MA and TSMOM rules' daily returns correlate {ma_ret.min():.2f}-{ma_ret.max():.2f} and their 0/1 exposures {ma_exp.min():.2f}-{ma_exp.max():.2f}; across ETFs the average rule is in the same state as EMA50/200 on {avg_agree[EMA].drop(EMA).mean():.0%} of days. Donchian is the outlier (return correlation {don_ret.min():.2f}-{don_ret.max():.2f}).
-- **Trading:** {trade_bit}; {most_whip} has the most whipsaws (losing trips under 3 months: {int(raw.loc[most_whip, "n_whipsaws"])}, compounding to {raw.loc[most_whip, "whipsaw_loss"]:.0%}) vs {int(raw.loc[EMA, "n_whipsaws"])} for EMA50/200.
+- **Trading:** {trade_bit}; {whip_bit} vs {int(raw.loc[EMA, "n_whipsaws"])} for EMA50/200.
 - **Trend signature:** EMA50/200 equals the sign of a weighted sum of past price changes, with weights peaking at lag {e_ks["peak_lag"]:.0f}, a mean lag of {e_ks["mean_lag"]:.0f} days (TSMOM 12M: {t_ks["mean_lag"]:.0f}) and {e_ks["weight_beyond_1y"]:.0%} of its weight beyond a year. The kernel reproduces the rule's state on {check["dollar"]:.1%} of SPY days ({check["log"]:.1%} with log returns).
 """
     noise = n_sig == 0 and ci_w > spread
@@ -540,7 +574,7 @@ def run(ctx: Context) -> Section:
         )
     )
     text += f"""
-**Interpretation.** Levine & Pedersen (2016) show that moving-average crossovers and time-series momentum (Moskowitz, Ooi & Pedersen 2012) are both linear filters on past returns and are closely related once their horizons are matched; they differ mainly in the shape of the weights. The analytic kernel makes this concrete: EMA50/200 has {"almost the same mean lag as" if lag_gap < 10 else "a different mean lag from"} 12-month TSMOM ({e_ks["mean_lag"]:.0f} vs {t_ks["mean_lag"]:.0f} days), but its weights are hump-shaped (peak at lag {e_ks["peak_lag"]:.0f}) with a long tail instead of a flat 12-month box{"; the shared horizon is why their SPY exposures correlate " + f"{rho_ts:.2f}" if lag_gap < 10 else ""}. Faber's (2007) 10-month rule weights recent changes most (mean lag {ks.loc["Faber 10M SMA", "mean_lag"]:.0f} days) and, being checked only at month ends, trades {"more" if raw.loc["Faber 10M SMA", "n_trades"] > ema_tr else "less"} often than EMA50/200 on SPY ({raw.loc["Faber 10M SMA", "n_trades"]:.0f} vs {ema_tr:.0f} round trips). Zakamulin (2014) likewise finds the real-life performance of MA and momentum timing rules far more modest than commonly reported. {snoop} {xasset_line}
+**Interpretation.** Levine & Pedersen (2016) show that moving-average crossovers and time-series momentum (Moskowitz, Ooi & Pedersen 2012) are both linear filters on past returns and are closely related once their horizons are matched; they differ mainly in the shape of the weights. The analytic kernel makes this concrete: EMA50/200 has {"almost the same mean lag as" if lag_gap < 10 else "a different mean lag from"} 12-month TSMOM ({e_ks["mean_lag"]:.0f} vs {t_ks["mean_lag"]:.0f} days), but its weights are hump-shaped (peak at lag {e_ks["peak_lag"]:.0f}) with a long tail instead of a flat 12-month box.{horizon_bit} Faber's (2007) 10-month rule weights recent changes most (mean lag {ks.loc["Faber 10M SMA", "mean_lag"]:.0f} days) and, being checked only at month ends, trades {"more" if raw.loc["Faber 10M SMA", "n_trades"] > ema_tr else "less"} often than EMA50/200 on SPY ({raw.loc["Faber 10M SMA", "n_trades"]:.0f} vs {ema_tr:.0f} round trips). Zakamulin (2014) likewise finds the real-life performance of MA and momentum timing rules far more modest than commonly reported. {snoop} {xasset_line}
 """
     after = (
         "Correlation table: daily strategy-return correlation / daily exposure correlation "

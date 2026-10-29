@@ -12,8 +12,6 @@ looking at any data, and with buy-and-hold over exactly the same OOS dates.
 
 from __future__ import annotations
 
-import time
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -24,6 +22,7 @@ from ..plotting import _date_axis, _titles, save_figure, theme
 from ..report import df_to_markdown
 from ..strategies import EMACrossover
 from .common import Context, Section
+from .e09_significance import holm_adjust
 
 NAME = "e04_walk_forward"
 TITLE = "4. Walk-forward: does re-optimising the windows beat a fixed textbook rule?"
@@ -90,6 +89,40 @@ def _fold_ranks(wf: validation.WalkForwardResult) -> pd.DataFrame:
     return pd.DataFrame(out, index=wf.folds.index)
 
 
+def _p_worse(boot: dict) -> float:
+    """One-sided p for H0: ``diff >= 0`` (WF *not* worse), the mirror of ``boot["p_value"]``."""
+    d = boot["diff"]
+    fin = boot["samples"][np.isfinite(boot["samples"])]
+    if len(fin) == 0 or not np.isfinite(d):
+        return float("nan")
+    return float((1.0 + np.sum(fin - d <= d)) / (len(fin) + 1.0))
+
+
+def _holm_rows(rows: list[dict]) -> None:
+    """Holm-adjust the one-sided p-values (both directions) across every walk-forward test."""
+    for key in ("sharpe_diff_p", "sharpe_diff_p_worse"):
+        adj = holm_adjust([r[key] for r in rows])
+        for r, a in zip(rows, adj, strict=True):
+            r[f"{key}_holm"] = float(a)
+
+
+def _tradeoffs(R: dict, key: str) -> str:
+    """Group assets by how a strategy's CAGR and max drawdown compare with buy-and-hold."""
+    groups: dict[str, list[str]] = {}
+    for tk, r in R.items():
+        more = r[f"{key}_cagr"] > r["bnh_cagr"]
+        shallower = r[f"{key}_max_drawdown"] > r["bnh_max_drawdown"]
+        what = {
+            (False, True): "trades return for a shallower drawdown",
+            (True, True): "out-earns it with a shallower drawdown",
+            (False, False): "earns less with a deeper drawdown",
+            (True, False): "earns more with a deeper drawdown",
+        }[(more, shallower)]
+        groups.setdefault(what, []).append(LABEL[tk])
+    parts = [f"{what} ({', '.join(a)})" for what, a in groups.items()]
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
 def _study(ctx: Context, ticker: str, grid, anchored: bool, n_boot: int) -> dict:
     prices, cfg = ctx.prices(ticker), ctx.config(ticker)
     wf = validation.walk_forward(
@@ -137,6 +170,7 @@ def _study(ctx: Context, ticker: str, grid, anchored: bool, n_boot: int) -> dict
         "sharpe_diff_ci_low": boot["ci_low"],
         "sharpe_diff_ci_high": boot["ci_high"],
         "sharpe_diff_p": boot["p_value"],
+        "sharpe_diff_p_worse": _p_worse(boot),
     }
     for lbl, key in ((WF_LABEL, "wf"), (STATIC_LABEL, "static"), (BNH_LABEL, "bnh")):
         r = series[lbl]
@@ -187,14 +221,20 @@ def _wf_chart(st: dict, ticker: str, path) -> None:
     st_eq = (1.0 + st["series"][STATIC_LABEL]).cumprod()
     lo, hi = row["sharpe_diff_ci_low"], row["sharpe_diff_ci_high"]
     noise = lo <= 0 <= hi
+    holm_sig = min(row["sharpe_diff_p_holm"], row["sharpe_diff_p_worse_holm"]) < 0.05
     if row["wf_sharpe"] > row["static_sharpe"]:
-        verb = "edges" if noise else "beats"
+        verb = "edges" if noise or not holm_sig else "beats"
     else:
         verb = "trails"
+    if noise:
+        gap = ", a gap within noise"
+    elif holm_sig:
+        gap = ", a significant gap"
+    else:
+        gap = ", a gap not significant after Holm"
     title = (
         f"{LABEL[ticker]}: yearly re-optimisation {verb} the fixed 50/200 "
-        f"(Sharpe {row['wf_sharpe']:.2f} vs {row['static_sharpe']:.2f})"
-        + (", a gap within noise" if noise else ", a significant gap")
+        f"(Sharpe {row['wf_sharpe']:.2f} vs {row['static_sharpe']:.2f})" + gap
     )
     sub = (
         f"Each year trades the EMA pair with the best Sharpe over the prior {TRAIN_YEARS} years; "
@@ -269,12 +309,14 @@ def _param_path_chart(studies: dict, path, title: str, subtitle: str) -> None:
 
 
 def run(ctx: Context) -> Section:
-    t0 = time.time()
     fast, slow = (FAST_QUICK, SLOW_QUICK) if ctx.quick else (FAST, SLOW)
     grid = validation.parameter_grid(fast, slow)
     n_boot = 300 if ctx.quick else 2000
     studies = {tk: _study(ctx, tk, grid, False, n_boot) for tk in ASSETS}
     anchored = {} if ctx.quick else {tk: _study(ctx, tk, grid, True, n_boot) for tk in ASSETS}
+    all_rows = [st["row"] for st in studies.values()] + [st["row"] for st in anchored.values()]
+    _holm_rows(all_rows)
+    n_tests = len(all_rows)
 
     rows = {LABEL[tk]: st["row"] for tk, st in studies.items()}
     rows.update({f"{LABEL[tk]} (anchored)": st["row"] for tk, st in anchored.items()})
@@ -326,14 +368,15 @@ def run(ctx: Context) -> Section:
         }
     )
     n_beat = int((bars[WF_LABEL] > bars[STATIC_LABEL]).sum())
-    n_sig = sum(st["row"]["sharpe_diff_ci_low"] > 0 for st in studies.values())
+    n_sig = sum(st["row"]["sharpe_diff_p_holm"] < 0.05 for st in studies.values())
     p = ctx.fig_path(f"{NAME}_oos_sharpe")
     plotting.bar_comparison(
         bars,
         f"Walk-forward beats the fixed 50/200 on {n_beat} of {len(bars)} assets out of sample, "
         f"{'none' if n_sig == 0 else n_sig} significantly",
         subtitle="Sharpe ratio over identical out-of-sample dates (each asset's walk-forward "
-        "test windows).\nSignificance: paired stationary bootstrap of the Sharpe gap, 95%.",
+        "test windows).\nSignificance: one-sided paired stationary bootstrap of the Sharpe gap, "
+        f"Holm-adjusted across {n_tests} walk-forward tests, 5%.",
         percent=False,
         fmt="{:.2f}",
         xlabel="Out-of-sample Sharpe ratio",
@@ -374,19 +417,31 @@ def run(ctx: Context) -> Section:
         "sharpe_diff_ci_low": "95% CI low",
         "sharpe_diff_ci_high": "95% CI high",
         "sharpe_diff_p": "p (WF > 50/200)",
+        "sharpe_diff_p_holm": "Holm p (WF > 50/200)",
+        "sharpe_diff_p_worse": "p (WF < 50/200)",
+        "sharpe_diff_p_worse_holm": "Holm p (WF < 50/200)",
     }
     disp2 = _fmt_df(
         summary[list(cols2)],
         pct=("mean_oos_percentile", "share_folds_beat_static"),
         ints=("n_switches", "n_unique"),
-        prob=("sharpe_diff_p",),
+        prob=(
+            "sharpe_diff_p",
+            "sharpe_diff_p_holm",
+            "sharpe_diff_p_worse",
+            "sharpe_diff_p_worse_holm",
+        ),
     ).rename(columns=cols2)
     tables = [
         (
             "Out-of-sample performance over identical dates (rolling 5y/1y; anchored as a check).",
             disp,
         ),
-        ("Selection diagnostics and a paired stationary-bootstrap test of WF minus 50/200.", disp2),
+        (
+            "Selection diagnostics and one-sided paired stationary-bootstrap tests of WF minus "
+            f"50/200 in both directions (Holm: adjusted across all {n_tests} walk-forward tests).",
+            disp2,
+        ),
     ]
     _save(ctx, f"{NAME}_summary", summary, pd.concat([disp, disp2], axis=1))
 
@@ -394,25 +449,40 @@ def run(ctx: Context) -> Section:
     R = {tk: st["row"] for tk, st in studies.items()}
     beat = [LABEL[tk] for tk, r in R.items() if r["wf_sharpe"] > r["static_sharpe"]]
     trail = [LABEL[tk] for tk, r in R.items() if r["wf_sharpe"] <= r["static_sharpe"]]
-    sig = [LABEL[tk] for tk, r in R.items() if r["sharpe_diff_p"] < 0.05]
+    sig = [LABEL[tk] for tk, r in R.items() if r["sharpe_diff_p_holm"] < 0.05]
+    sig_raw = [
+        LABEL[tk] for tk, r in R.items() if r["sharpe_diff_p"] < 0.05 and LABEL[tk] not in sig
+    ]
     wfe = {LABEL[tk]: r["wfe"] for tk, r in R.items()}
     pct = [r["mean_oos_percentile"] for r in R.values()]
     fb = [r["share_folds_beat_static"] for r in R.values()]
     mean_diff = float(np.mean([r["sharpe_diff_vs_static"] for r in R.values()]))
     vs_bh = [LABEL[tk] for tk, r in R.items() if r["wf_sharpe"] > r["bnh_sharpe"] + 0.01]
     low_ret = [LABEL[tk] for tk, r in R.items() if r["wf_cagr"] < r["bnh_cagr"]]
-    worse = [
-        f"{LABEL[tk]} (CI {r['sharpe_diff_ci_low']:+.2f} to {r['sharpe_diff_ci_high']:+.2f})"
-        for tk, r in R.items()
-        if r["sharpe_diff_ci_high"] < 0
+    labelled = [(LABEL[tk], st["row"]) for tk, st in studies.items()] + [
+        (f"{LABEL[tk]} anchored", st["row"]) for tk, st in anchored.items()
     ]
-    if anchored:
-        worse += [
-            f"{LABEL[tk]} anchored (CI {st['row']['sharpe_diff_ci_low']:+.2f} to "
-            f"{st['row']['sharpe_diff_ci_high']:+.2f})"
-            for tk, st in anchored.items()
-            if st["row"]["sharpe_diff_ci_high"] < 0
-        ]
+    worse_adj = [
+        f"{lbl} (one-sided p = {r['sharpe_diff_p_worse']:.3f}, Holm {r['sharpe_diff_p_worse_holm']:.3f})"
+        for lbl, r in labelled
+        if r["sharpe_diff_p_worse_holm"] < 0.05
+    ]
+    worse_raw = [
+        f"{lbl} (one-sided p = {r['sharpe_diff_p_worse']:.3f})"
+        for lbl, r in labelled
+        if r["sharpe_diff_p_worse"] < 0.05 and r["sharpe_diff_p_worse_holm"] >= 0.05
+    ]
+    worse_txt = ""
+    if worse_adj:
+        worse_txt += (
+            f"; it is significantly *worse* on {', '.join(worse_adj)}, after Holm across the "
+            f"{n_tests} walk-forward tests"
+        )
+    if worse_raw:
+        worse_txt += (
+            f"; it is worse at the uncorrected 5% level on {', '.join(worse_raw)}, but not "
+            f"significantly after Holm across the {n_tests} walk-forward tests"
+        )
 
     def _line(tk: str) -> str:
         r = R[tk]
@@ -439,12 +509,18 @@ def run(ctx: Context) -> Section:
         f"{LABEL[tk]} {r['sharpe_diff_ci_low']:+.2f} to {r['sharpe_diff_ci_high']:+.2f}"
         for tk, r in R.items()
     )
-    shallower = all(r["wf_max_drawdown"] > r["bnh_max_drawdown"] for r in R.values())
+    trade_txt = (
+        f"Against buy-and-hold, walk-forward {_tradeoffs(R, 'wf')}; the static rule "
+        f"{_tradeoffs(R, 'static')}."
+    )
     wfe_txt = ", ".join(f"{k} {v:.2f}" if np.isfinite(v) else f"{k} n/a" for k, v in wfe.items())
     verdict = (
         "No asset shows a significant gain from re-optimising"
         if not sig
         else f"Only {', '.join(sig)} shows a gain significant at 5%"
+    ) + (
+        f" after Holm adjustment across the {n_tests} walk-forward tests"
+        + (f" ({', '.join(sig_raw)} only before adjustment)" if sig_raw else "")
     )
 
     text = f"""**Question.** Does re-optimising the EMA windows every year on the past {TRAIN_YEARS} years beat simply fixing 50/200 in advance, on dates neither has seen?
@@ -457,10 +533,10 @@ def run(ctx: Context) -> Section:
 - {_line("QQQ")}.
 - {_line("BTC-USD")}.
 - {_line("GLD")}.
-- Walk-forward beats the fixed rule on {len(beat)} of {len(R)} assets ({", ".join(beat) if beat else "none"}) and trails on {", ".join(trail) if trail else "none"}; the average Sharpe difference is {mean_diff:+.2f}. {verdict} (paired stationary bootstrap; 95% CIs of the gap: {ci_txt}){"; it is significantly *worse* on " + ", ".join(worse) if worse else ""}.{anch_txt}
+- Walk-forward beats the fixed rule on {len(beat)} of {len(R)} assets ({", ".join(beat) if beat else "none"}) and trails on {", ".join(trail) if trail else "none"}; the average Sharpe difference is {mean_diff:+.2f}. {verdict} (one-sided paired stationary bootstrap; 95% CIs of the gap: {ci_txt}){worse_txt}.{anch_txt}
 - The chosen pair changes at {total_sw} of {total_f} fold boundaries. Its OOS Sharpe ranks, on average, at the {min(pct):.0%}-{max(pct):.0%} percentile of all {len(grid)} candidates in the same test year (50% = a random pick), and it beats 50/200 in {min(fb):.0%}-{max(fb):.0%} of the test years where the two differ. Walk-forward efficiency: {wfe_txt}.
 
-**Interpretation.** Walk-forward analysis (Pardo 2008) removes the look-ahead in the *choice* of parameters, the step the README's Bitcoin re-tuning (12/128, then 50/200) skipped, but it cannot create information that is not there. Experiment 3 showed how little the in-sample ranking of these rules carries out of sample. Here the yearly re-selection {"lands close to the middle of the candidate pack" if 0.35 <= np.mean(pct) <= 0.65 else ("lands in the upper part of the pack" if np.mean(pct) > 0.65 else "lands in the lower part of the pack")} out of sample while hopping between near-equivalent rules. The out-of-sample edge of optimisation over a rule chosen a priori is {("negative on average" if mean_diff <= 0 else "small") + " and statistically indistinguishable from zero" if not sig else "present only on " + ", ".join(sig)}. This is one reason practitioners fix and diversify lookbacks rather than tune them: Hurst, Ooi & Pedersen (2017) average 1-, 3- and 12-month signals across a century of data. Optimisation is a source of selection bias (Bailey et al. 2017), and the fair benchmark for a tuned rule is the untuned one. If anything the test favours the static rule, whose "a priori" status is partly earned ex post: 50/200 became the textbook rule by working on past US equity data (Sullivan, Timmermann & White 1999). Walk-forward beats buy-and-hold's Sharpe by more than 0.01 on {len(vs_bh)} of {len(R)} assets{" (" + ", ".join(vs_bh) + ")" if vs_bh else ""}, yet earns a lower CAGR on {len(low_ret)} ({", ".join(low_ret) if low_ret else "none"}){"; like the static rule, it mainly trades return for shallower drawdowns" if shallower else ""}. BTC has only {R["BTC-USD"]["oos_years"]:.1f} OOS years ({R["BTC-USD"]["n_folds"]} folds) after the slow-EMA warm-up and the {TRAIN_YEARS}-year training window, so its numbers are anecdotes.
+**Interpretation.** Walk-forward analysis (Pardo 2008) removes the look-ahead in the *choice* of parameters, the step the README's Bitcoin re-tuning (12/128, then 50/200) skipped, but it cannot create information that is not there. Experiment 3 showed how little the in-sample ranking of these rules carries out of sample. Here the yearly re-selection {"lands close to the middle of the candidate pack" if 0.35 <= np.mean(pct) <= 0.65 else ("lands in the upper part of the pack" if np.mean(pct) > 0.65 else "lands in the lower part of the pack")} out of sample while hopping between near-equivalent rules. The out-of-sample edge of optimisation over a rule chosen a priori is {("negative on average" if mean_diff <= 0 else "small") + " and statistically indistinguishable from zero" if not sig else "present only on " + ", ".join(sig)}. This is one reason practitioners fix and diversify lookbacks rather than tune them: Hurst, Ooi & Pedersen (2017) average 1-, 3- and 12-month signals across a century of data. Optimisation is a source of selection bias (Bailey et al. 2017), and the fair benchmark for a tuned rule is the untuned one. If anything the test favours the static rule, whose "a priori" status is partly earned ex post: 50/200 became the textbook rule by working on past US equity data (Sullivan, Timmermann & White 1999). Walk-forward beats buy-and-hold's Sharpe by more than 0.01 on {len(vs_bh)} of {len(R)} assets{" (" + ", ".join(vs_bh) + ")" if vs_bh else ""}, yet earns a lower CAGR on {len(low_ret)} ({", ".join(low_ret) if low_ret else "none"}). {trade_txt} BTC has only {R["BTC-USD"]["oos_years"]:.1f} OOS years ({R["BTC-USD"]["n_folds"]} folds) after the slow-EMA warm-up and the {TRAIN_YEARS}-year training window, so its numbers are anecdotes.
 """
 
     results = {
@@ -472,7 +548,7 @@ def run(ctx: Context) -> Section:
         "total_switches": total_sw,
         "total_boundaries": total_f,
         "mean_sharpe_diff_vs_static": mean_diff,
-        "runtime_s": round(time.time() - t0, 1),
+        "n_walk_forward_tests": n_tests,
     }
     keys = (
         "wf_sharpe",
@@ -490,6 +566,9 @@ def run(ctx: Context) -> Section:
         "mean_oos_percentile",
         "sharpe_diff_vs_static",
         "sharpe_diff_p",
+        "sharpe_diff_p_holm",
+        "sharpe_diff_p_worse",
+        "sharpe_diff_p_worse_holm",
     )
     for tk, r in R.items():
         for k in keys:
@@ -500,6 +579,8 @@ def run(ctx: Context) -> Section:
         results[f"{LABEL[tk].lower()}_oos_start"] = r["oos_start"]
     for tk, st in anchored.items():
         results[f"{LABEL[tk].lower()}_anchored_wf_sharpe"] = float(st["row"]["wf_sharpe"])
+        for k in ("sharpe_diff_p_worse", "sharpe_diff_p_worse_holm"):
+            results[f"{LABEL[tk].lower()}_anchored_{k}"] = float(st["row"][k])
 
     after = (
         "Walk-forward efficiency here is the ratio of mean OOS to mean in-sample excess return "

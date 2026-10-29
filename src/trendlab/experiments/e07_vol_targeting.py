@@ -31,6 +31,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.ticker import MaxNLocator
+from scipy.stats import norm
 
 from .. import plotting
 from ..engine import evaluation_start
@@ -52,7 +53,6 @@ TARGET_VOL_CRYPTO = 0.40
 WINDOW = 63
 CAPS = (1.0, 2.0)
 
-VARIANTS = ["B&H", "B&H + VT", "B&H + VT 2x", "EMA50/200", "EMA + VT", "EMA + VT 2x"]
 DISPLAY_VARIANTS = ["B&H", "B&H + VT", "EMA50/200", "EMA + VT"]
 
 
@@ -98,9 +98,13 @@ def mechanism(asset_returns: pd.Series, rf: pd.Series, periods: int) -> dict:
     ok = nxt.notna()
     n = int(ok.sum())
     rho_pred = float(np.corrcoef(rv[ok], nxt[ok])[0, 1])
-    # Sharpe of the next month conditional on this month's vol (top vs bottom tercile)
-    q_lo, q_hi = rv[ok].quantile([1 / 3, 2 / 3])
-    hi, lo = nxt[ok][rv[ok] >= q_hi], nxt[ok][rv[ok] <= q_lo]
+    # Sharpe of the next month conditional on this month's vol: bottom vs top n // 3 months
+    # by rank (stable sort, ties kept in date order). A quantile threshold would make the
+    # group sizes depend on floating-point ties at the boundary.
+    order = np.argsort(rv[ok].to_numpy(), kind="stable")
+    k = n // 3
+    nxt_ok = nxt[ok].to_numpy()
+    lo, hi = pd.Series(nxt_ok[order[:k]]), pd.Series(nxt_ok[order[n - k :]])
     sr_hi = float(hi.mean() / hi.std() * math.sqrt(12))
     sr_lo = float(lo.mean() / lo.std() * math.sqrt(12))
     return {
@@ -422,10 +426,21 @@ def run(ctx: Context) -> Section:
         (dsr["B&H + VT (2x cap)"] - dsr["B&H + VT (1x cap)"]).loc[RISK_ASSETS].abs().max()
     )
     ief_2x = float(dsr.loc["IEF", "B&H + VT (2x cap)"])
-    if risk_d.min() > def_d.max():
-        split = "clean"
-    elif risk_d.mean() > def_d.mean():
-        split = "weak"
+    # Equity-minus-bond/gold gap in mean Sharpe change, with an SE-based 95% interval built
+    # from the per-asset bootstrap CIs (SE_i = CI width / 2z), treating the assets'
+    # estimation errors as independent.
+    z = float(norm.ppf(0.975))
+    se_i = (mech_df["ci_high_bh_vt"] - mech_df["ci_low_bh_vt"]) / (2 * z)
+    split_diff = float(risk_d.mean() - def_d.mean())
+    split_se = math.sqrt(
+        float((se_i.loc[RISK_ASSETS] ** 2).sum()) / len(RISK_ASSETS) ** 2
+        + float((se_i.loc[DEFENSIVE] ** 2).sum()) / len(DEFENSIVE) ** 2
+    )
+    split_lo, split_hi = split_diff - z * split_se, split_diff + z * split_se
+    if split_lo > 0:
+        split = "clean" if risk_d.min() > def_d.max() else "weak"
+    elif split_diff > 0:
+        split = "not_distinguishable"
     else:
         split = "none"
     win_mean = win_df[RISK_ASSETS].mean(axis=1)
@@ -508,11 +523,17 @@ def run(ctx: Context) -> Section:
             f"{spy_to:.1f}x a year)."
         )
 
+    split_ci = (
+        f"equities minus bonds/gold {pm(split_diff)}, 95% CI {pm(split_lo)} to {pm(split_hi)}, "
+        "SE-based from the per-asset bootstrap intervals assuming independence"
+    )
     verdict = {
         "clean": "The data reproduce the Harvey et al. (2018) split cleanly",
         "weak": "The data reproduce the Harvey et al. (2018) split only weakly",
+        "not_distinguishable": "The gap between equities and bonds/gold points the way "
+        "Harvey et al. (2018) report, but it cannot be told apart from zero",
         "none": "The data do not reproduce the Harvey et al. (2018) split",
-    }[split]
+    }[split] + f" ({split_ci})"
     mech_line = (
         "The mechanism is visible where it should be: equity returns fall as vol rises "
         "(the leverage effect) and vol clusters, so a trailing estimate is a usable forecast "
@@ -541,7 +562,9 @@ def run(ctx: Context) -> Section:
     after = (
         "The window-robustness table is a sensitivity check only; the 63-day window was fixed "
         "before running it. The 2x variant borrows at the T-bill rate, which understates the "
-        "cost of leverage for a real account."
+        "cost of leverage for a real account. Next-month Sharpe after low / high vol uses the "
+        "bottom and top third of months ranked by realised vol (n // 3 each, ties kept in date "
+        "order), not quantile thresholds."
     )
 
     results = {
@@ -564,6 +587,9 @@ def run(ctx: Context) -> Section:
         "corr_vol_next_ret_equities": float(risk_rho),
         "corr_vol_next_ret_bonds_gold": float(def_rho),
         "harvey_split": split,
+        "harvey_split_diff": split_diff,
+        "harvey_split_ci_low": split_lo,
+        "harvey_split_ci_high": split_hi,
         "cross_asset_corr_pred_rho_vs_dsharpe": xc,
         "spy_maxdd_constant_exposure": float(const["max_drawdown"]),
         "spy_dd_reduction_timing_share": float(timing_share),

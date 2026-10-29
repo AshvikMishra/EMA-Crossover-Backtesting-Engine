@@ -289,7 +289,13 @@ def run(ctx: Context) -> Section:
     dd_wins = int((dd_diff > 0).sum())
     calmar_wins = int((df["calmar"] > df["bnh_max_drawdown"].abs().rdiv(df["bnh_cagr"])).sum())
     mix_cagr_wins = int((df["cagr"] > df["mix_cagr"]).sum())
-    mix_dd_wins = int((df["max_drawdown"] > df["mix_max_drawdown"]).sum())
+    mix_dd_margin = df["max_drawdown"] - df["mix_max_drawdown"]
+    mix_dd_wins = int((mix_dd_margin > 0).sum())
+    mix_dd_clear_wins = int((mix_dd_margin > 0.01).sum())  # shallower by more than 1 pp
+    # share of the drawdown gap vs buy-and-hold that the exposure-matched mix already delivers
+    mix_dd_share = float(
+        (1.0 - mix_dd_margin / (df["max_drawdown"] - df["bnh_max_drawdown"])).median()
+    )
     mix_sharpe_gap = float((df["mix_sharpe"] - df["bnh_sharpe"]).abs().max())
     med = {
         "sharpe_diff": float(sharpe_diff.median()),
@@ -445,10 +451,14 @@ def run(ctx: Context) -> Section:
         )
     cost_etf, cost_btc = costs_for("SPY").bps, costs_for("BTC-USD").bps
     timing_txt = pick(
-        mix_dd_wins > n / 2,
-        "the rule still has the shallower drawdown in most markets, so the timing, not "
-        "just the lower average exposure, cuts the tails",
-        "most of the drawdown reduction is reproduced by simply holding less of the asset",
+        med["mix_dd_diff"] > 0.05 and mix_dd_clear_wins > n / 2,
+        f"the rule's drawdown is shallower by more than 1 pp in {mix_dd_clear_wins} of {n} "
+        f"markets (median {med['mix_dd_diff'] * 100:+.1f} pp), so the timing, not just the "
+        "lower average exposure, cuts the tails",
+        f"a median {mix_dd_share:.0%} of the drawdown reduction is reproduced by simply holding "
+        f"less of the asset; the remaining timing edge (median {med['mix_dd_diff'] * 100:+.1f} pp, "
+        f"more than 1 pp in {mix_dd_clear_wins} of {n} markets) is small, and section 9 tests "
+        "whether it is significant in any market",
     )
 
     text = f"""**Question.** Is the EMA50/200 result a property of NVDA in 2022-2025, or does the same untuned rule add value across asset classes?
@@ -458,7 +468,7 @@ def run(ctx: Context) -> Section:
 **Findings.**
 
 - Sharpe is higher than buy-and-hold in **{sharpe_wins} of {n}** markets (median difference {med["sharpe_diff"]:+.3f}); CAGR is higher in {only}**{cagr_wins} of {n}** (median {med["cagr_diff"]:+.1%} a year). {boot_txt} Excluding the two hindsight picks (NVDA, Bitcoin), the rule wins on Sharpe in {core_sharpe_wins} of {len(core)} ETFs and on CAGR in {core_cagr_wins} of {len(core)}; the picks win {picks_sharpe_wins} of {len(picks)} on Sharpe.
-- Maximum drawdown is shallower in **{dd_wins} of {n}** markets, by a median {med["dd_diff"] * 100:.0f} percentage points. Against the exposure-matched mix (median exposure {med["exposure"]:.0%}) the rule has a shallower drawdown in **{mix_dd_wins} of {n}** (median {med["mix_dd_diff"] * 100:+.0f} pp) and a higher CAGR in {mix_cagr_wins} of {n}.
+- Maximum drawdown is shallower in **{dd_wins} of {n}** markets, by a median {med["dd_diff"] * 100:.0f} percentage points. Against the exposure-matched mix (median exposure {med["exposure"]:.0%}) the rule has a shallower drawdown in **{mix_dd_wins} of {n}** ({mix_dd_clear_wins} by more than 1 pp; median {med["mix_dd_diff"] * 100:+.1f} pp) and a higher CAGR in {mix_cagr_wins} of {n}.
 - By class, the mean Sharpe gain is positive for {_join(pos_cls)}; zero or negative for {_join(neg_cls)}.
 - The rule is slow: a median {med["trades"]:.1f} round trips a year and a {med["hit"]:.0%} hit rate, {hit_txt}.
 - On SPY it gave {slow_txt} of protection in the 2000-02 and 2007-09 bears, but {fast_txt}. {bond_txt}
@@ -486,6 +496,8 @@ def run(ctx: Context) -> Section:
         "maxdd_shallower_than_bnh": dd_wins,
         "calmar_beats_bnh": calmar_wins,
         "maxdd_shallower_than_matched": mix_dd_wins,
+        "maxdd_shallower_than_matched_by_1pp": mix_dd_clear_wins,
+        "median_maxdd_gap_share_from_exposure": mix_dd_share,
         "cagr_beats_matched": mix_cagr_wins,
         "median_sharpe_diff": med["sharpe_diff"],
         "median_cagr_diff": med["cagr_diff"],

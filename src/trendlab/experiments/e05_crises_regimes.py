@@ -383,9 +383,9 @@ def run(ctx: Context) -> Section:
         if not bool((helped_spy["days"] > SLOW_DAYS).all()):
             head = "Where it paid"
         elif n_slow_paid == len(slow_spy):
-            head = "Deep, slow bears pay"
+            head = "Every SPY episode longer than six months paid"
         else:
-            head = f"Only {n_slow_paid} of {len(slow_spy)} slow SPY bears paid"
+            head = f"Only {n_slow_paid} of {len(slow_spy)} SPY episodes longer than six months paid"
 
         def to_end(r) -> str:
             if r["capped"]:

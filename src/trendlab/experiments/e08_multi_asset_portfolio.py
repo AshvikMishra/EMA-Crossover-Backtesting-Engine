@@ -18,14 +18,18 @@ Pre-specified design:
 * Control: the same inverse-vol book with every signal switched to "always
   long" (risk-parity-lite buy-and-hold). Comparing trend against it separates
   what the *signal* adds from what diversification and the inverse-vol tilt
-  towards bonds add.
+  towards bonds add. Its sleeves (and the TSMOM book's) are padded to the
+  EMA50/200 warm-up, so every sleeve joins all three books on the same bar.
 * Common window: the first date at which both SPY and IEF trend signals are
   warmed up (so the 60/40 really holds bonds and the trend book has both stock
-  and bond sleeves). Later-listing ETFs (GLD, VNQ, DBC) join each book as soon
-  as they trade (benchmarks) or their signal is warm (trend).
+  and bond sleeves). Later-listing ETFs (EEM, GLD, VNQ, DBC) join the static
+  benchmarks as soon as they trade and the inverse-vol books once the EMA50/200
+  signal is warm.
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,7 +46,7 @@ from ..portfolio import (
 )
 from ..report import df_to_markdown
 from ..stats import bootstrap_sharpe_difference
-from ..strategies import BuyAndHold, EMACrossover, TimeSeriesMomentum
+from ..strategies import BuyAndHold, EMACrossover, Strategy, TimeSeriesMomentum
 from ..universe import ASSETS, CORE
 from .common import ETF_COSTS, Context, Section, costs_for
 
@@ -65,6 +69,26 @@ IVBH = "Inverse-vol B&H"
 BLEND = "80% 60/40 + 20% trend"
 
 CLASS_ORDER = ["US equity", "Intl equity", "Real estate", "Bonds", "Commodities"]
+
+
+@dataclass(frozen=True, repr=False)
+class _JoinAfter(Strategy):
+    """``base`` with its warm-up padded to ``bars``, so a sleeve joins the book
+    on the same bar as a slower-warming strategy's sleeve on the same asset."""
+
+    base: Strategy
+    bars: int
+
+    @property
+    def name(self) -> str:
+        return self.base.name
+
+    @property
+    def warmup(self) -> int:
+        return max(self.base.warmup, self.bars)
+
+    def _raw_target(self, prices: pd.DataFrame) -> pd.Series:
+        return self.base._raw_target(prices)
 
 
 def _save(ctx: Context, name: str, raw: pd.DataFrame, display: pd.DataFrame) -> None:
@@ -119,6 +143,9 @@ def run(ctx: Context) -> Section:
     costs = {t: costs_for(t) for t in CORE}
     ema, tsmom = EMACrossover(50, 200), TimeSeriesMomentum(252)
     start = max(evaluation_start(prices[t], [ema, tsmom]) for t in ("SPY", "IEF"))
+    # every inverse-vol book adds a sleeve on the bar the EMA50/200 sleeve joins
+    tsmom_book = _JoinAfter(tsmom, ema.warmup)
+    always_long = _JoinAfter(BuyAndHold(), ema.warmup)
     common = {
         "costs": costs,
         "rf_yield": ctx.rf,
@@ -129,7 +156,7 @@ def run(ctx: Context) -> Section:
     trend_kw = {"weighting": "inverse_vol", "vol_window": VOL_WINDOW, "rebalance": "ME"}
 
     trend = portfolio_backtest(prices, ema, name=TREND, **trend_kw, **common)
-    trend_ts = portfolio_backtest(prices, tsmom, name=TSMOM, **trend_kw, **common)
+    trend_ts = portfolio_backtest(prices, tsmom_book, name=TSMOM, **trend_kw, **common)
     trend_vt = portfolio_backtest(
         prices,
         ema,
@@ -139,7 +166,7 @@ def run(ctx: Context) -> Section:
         **trend_kw,
         **common,
     )
-    ivbh = portfolio_backtest(prices, BuyAndHold(), name=IVBH, **trend_kw, **common)
+    ivbh = portfolio_backtest(prices, always_long, name=IVBH, **trend_kw, **common)
     sixty = static_mix_backtest(prices, {"SPY": 0.6, "IEF": 0.4}, name=SIXTY, **common)
     ew = static_mix_backtest(prices, {t: 1.0 / len(CORE) for t in CORE}, name=EW, **common)
     spy = static_mix_backtest(prices, {"SPY": 1.0}, name=SPY, **common)
@@ -384,6 +411,22 @@ def run(ctx: Context) -> Section:
     risk22_q1 = float(
         trend.contributions.loc["2022-01":"2022-03", eq_sleeves + ["VNQ"]].sum().sum()
     )
+    risk22_after = risk22 - risk22_q1
+    # weights are held over each bar's close-to-close return, so a sleeve's last
+    # 2022 bar with weight is the close at which it was sold. If none is held at
+    # year end, name the sleeves that exited in the same month as the last one.
+    w_risk22 = trend.weights.loc["2022", eq_sleeves + ["VNQ"]]
+    held22 = w_risk22.gt(0.0).any(axis=1)
+    if held22.any() and not held22.iloc[-1]:
+        exit22 = held22[held22].index[-1]
+        last_bar22 = {
+            t: w_risk22.index[w_risk22[t].gt(0.0)][-1]
+            for t in w_risk22
+            if w_risk22[t].gt(0.0).any()
+        }
+        last_out22 = [t for t, d in last_bar22.items() if d.to_period("M") == exit22.to_period("M")]
+    else:
+        exit22, last_out22 = None, []
     iv_bond_w = float(ivbh.weights[bond_sleeves].sum(axis=1).mean())
     rho_spy_ief = float(corr.loc["SPY", "IEF"])
     attr = pd.concat([by_class22, pd.Series({"Cash (T-bills)": cash22})])
@@ -466,6 +509,23 @@ def run(ctx: Context) -> Section:
     dd_t, dd_6, dd_iv = (float(p.loc[k, "max_drawdown"]) for k in (TREND, SIXTY, IVBH))
     dd_vt, vol_vt = float(p.loc[TREND_VT, "max_drawdown"]), float(p.loc[TREND_VT, "vol"])
 
+    if exit22 is None:
+        risk22_split = (
+            f"{spct(risk22_q1)} in January-March and {spct(risk22_after)} after, with some "
+            "still held at year end"
+            if held22.any()
+            else "none were held"
+        )
+    else:
+        names22 = ", ".join(last_out22)
+        last_txt = f"the last sleeve{'s' if len(last_out22) > 1 else ''} ({names22})"
+        if exit22 <= pd.Timestamp("2022-03-31"):
+            risk22_split = f"all in January-March; {last_txt} exited in {exit22:%B}"
+        else:
+            risk22_split = (
+                f"{spct(risk22_q1)} in January-March and {spct(risk22_after)} after, until "
+                f"{last_txt} exited in {exit22:%B}"
+            )
     iv_diff = plotting._minus(f"{bt_iv['diff']:+.2f}")
     pos_txt = "never positive" if n_worst_pos == 0 else f"positive {n_worst_pos} times"
     findings = [
@@ -498,8 +558,7 @@ def run(ctx: Context) -> Section:
         + f". In 2008 the Treasury sleeves contributed {spct(bonds08)} and the equity sleeves "
         f"{spct(eq08)}. In 2022 SPY returned {pct(c22['SPY'], 1)} and IEF "
         f"{pct(c22['IEF'], 1)}; the trend book's equity and REIT sleeves contributed "
-        f"{spct(risk22)} ({spct(risk22_q1)} in January-March, before the signals turned), "
-        f"T-bills {spct(cash22)} and commodities {spct(commod22)}.",
+        f"{spct(risk22)} ({risk22_split}), T-bills {spct(cash22)} and commodities {spct(commod22)}.",
         f"- **Blend:** 80% 60/40 + 20% trend moves Sharpe {f2(s_6)} → {f2(s_b)} "
         f"(one-sided p = {bt_blend['p_value']:.2f}), max drawdown {pct(dd_6)} → "
         f"{pct(p.loc[BLEND, 'max_drawdown'])}, CAGR {pct(p.loc[SIXTY, 'cagr'], 1)} → "
@@ -585,7 +644,7 @@ def run(ctx: Context) -> Section:
     )
     text = f"""**Question.** What does EMA50/200 trend following look like as a diversified multi-asset portfolio, and what does it add to a 60/40 investor?
 
-**Setup.** One long/cash sleeve per CORE ETF ({", ".join(CORE)}), inverse {VOL_WINDOW}-day-vol weights reset monthly, next-close fills, 5 bp costs, cash in T-bills; benchmarks are monthly-rebalanced 60/40 SPY/IEF, equal-weight CORE and SPY, plus a control that holds the same inverse-vol book always long. Common window {start.date()} to {ctx.end}; GLD, VNQ and DBC join once they trade and their signals are warm.
+**Setup.** One long/cash sleeve per CORE ETF ({", ".join(CORE)}), inverse {VOL_WINDOW}-day-vol weights reset monthly, next-close fills, 5 bp costs, cash in T-bills; benchmarks are monthly-rebalanced 60/40 SPY/IEF, equal-weight CORE and SPY, plus a control that holds the same inverse-vol book always long. Common window {start.date()} to {ctx.end}; EEM, GLD, VNQ and DBC join the static benchmarks once they trade and the trend, TSMOM and control books once their EMA50/200 signal is warm, so the three inverse-vol books always hold the same set of markets.
 
 **Findings.**
 
@@ -598,8 +657,9 @@ def run(ctx: Context) -> Section:
         "vol-targeted variant borrows at the T-bill rate, which flatters it. Calendar-year "
         "cells in the stress table show return (max drawdown within the year). Single-sleeve "
         "Sharpe ratios start at each sleeve's own warm-up date (the From column). The "
-        "inverse-vol control needs only 63 days of history per asset, so GLD, VNQ and DBC "
-        "enter it earlier than the trend book. Stress-year attributions sum daily "
+        "inverse-vol control and the TSMOM book add each sleeve on the bar its EMA50/200 "
+        f"signal warms up ({ema.warmup} bars after listing), although always-long and TSMOM "
+        "signals would be available earlier. Stress-year attributions sum daily "
         "contributions and are approximate. p-values are one-sided (paired stationary "
         "bootstrap, H0: no improvement)."
     )
@@ -646,6 +706,9 @@ def run(ctx: Context) -> Section:
         "trend_vt_cagr": float(p.loc[TREND_VT, "cagr"]),
         "trend_2008_bond_contrib": bonds08,
         "trend_2022_equity_reit_contrib": risk22,
+        "trend_2022_equity_reit_contrib_q1": risk22_q1,
+        "trend_2022_equity_reit_contrib_after_q1": risk22_after,
+        "trend_2022_equity_reit_exit": None if exit22 is None else exit22.date().isoformat(),
         "trend_2020_apr_dec": float(reb20["t"]),
         "sixty_forty_2020_apr_dec": float(reb20["s"]),
         "cash_share_avg": cash_all,

@@ -533,7 +533,7 @@ def run(ctx: Context) -> Section:
     # ---- derived numbers for the text
     d = np.diff(tot_a)
     start_spread = float(warm_w["fast"].iloc[0] / warm_w["slow"].iloc[0] - 1.0)
-    w_ins, w_outs = _fills(pairs[0][0].exposure)
+    _, w_outs = _fills(pairs[0][0].exposure)
     first_exit = w_outs[0] if w_outs else None
     close = window["Close"]
     loss_to_exit = float(close.loc[first_exit] / close.iloc[0] - 1.0) if first_exit else np.nan

@@ -5,7 +5,8 @@ settings: next-close fills, per-side costs, T-bill cash) is compared with
 buy-and-hold over the same window using
 
 * the probabilistic Sharpe ratio and minimum track record length (Bailey &
-  Lopez de Prado 2012) against zero and against buy-and-hold's Sharpe,
+  Lopez de Prado 2012) against zero, and their paired versions for the Sharpe
+  difference against buy-and-hold (``stats.sharpe_difference_test``),
 * a paired stationary-bootstrap test of the Sharpe difference (Politis &
   Romano 1994; Ledoit & Wolf 2008),
 * a random-entry Monte Carlo that keeps the rule's trades but randomises their
@@ -13,13 +14,14 @@ buy-and-hold over the same window using
 * Holm (1979) and Benjamini-Hochberg (1995) corrections across the 12 assets,
 * Lo's (2002) autocorrelation-adjusted Sharpe ratio,
 * a paired stationary-bootstrap test of the *risk* claim: the differences in
-  maximum drawdown and in volatility.
+  maximum drawdown and in volatility,
+* the SPY and QQQ Sharpe gaps on section 3's later common window (after the
+  EMA 400 warm-up), to show what the earlier full-history start adds.
 """
 
 from __future__ import annotations
 
 import math
-import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,10 +29,12 @@ import pandas as pd
 from matplotlib.lines import Line2D
 from scipy.stats import binomtest
 
-from .. import metrics, plotting, stats
+from .. import engine, metrics, plotting, stats, validation
 from ..strategies import EMACrossover
 from ..universe import ASSETS
 from .common import Context, Section
+from .e03_parameter_robustness import FAST as E03_FAST
+from .e03_parameter_robustness import SLOW as E03_SLOW
 
 NAME = "e09_significance"
 TITLE = "9. Is any edge statistically real? Sharpe inference, timing tests and multiple testing"
@@ -40,6 +44,7 @@ ALPHA = 0.05
 NOTEBOOK_WINDOW = ("2022-01-01", "2024-12-31")  # the original notebook's NVDA sample
 _RISK_CHUNK = 250  # bootstrap paths per vectorised drawdown chunk
 SENS_BLOCKS = (MEAN_BLOCK, 60.0, 125.0, 250.0)  # drawdown-test block lengths (1, 3, 6, 12 months)
+LATE_WINDOW_ASSETS = ("SPY", "QQQ")  # assets section 3 also evaluates, on a later window
 
 
 # --------------------------------------------------------------------------- multiple testing
@@ -159,6 +164,9 @@ def _analyse(ctx: Context, ticker: str, seed: int, n_boot: int, n_sims: int) -> 
     rs, rb, rf = res.returns, bnh.returns, res.rf
     sr_s = stats.sharpe_per_period(rs, rf)
     sr_b = stats.sharpe_per_period(rb, rf)
+    # paired PSR/MinTRL for SR_rule - SR_B&H: B&H's Sharpe is an estimate too, and the two
+    # legs are highly correlated, so the benchmark is not a known constant
+    sdt = stats.sharpe_difference_test(rs, rb, rf, ALPHA)
     boot = stats.bootstrap_sharpe_difference(
         rs, rb, rf=rf, n_boot=n_boot, mean_block=MEAN_BLOCK, seed=seed, periods=p, alpha=ALPHA
     )
@@ -181,9 +189,9 @@ def _analyse(ctx: Context, ticker: str, seed: int, n_boot: int, n_sims: int) -> 
         "diff_ci_high": boot["ci_high"],
         "p_boot": boot["p_value"],
         "psr_vs_0": stats.probabilistic_sharpe_ratio(rs, 0.0, rf),
-        "psr_vs_bnh": stats.probabilistic_sharpe_ratio(rs, sr_b, rf),
+        "psr_vs_bnh": sdt["psr"],
         "mintrl_vs_0_years": stats.min_track_record_length(rs, 0.0, ALPHA, rf) / p,
-        "mintrl_vs_bnh_years": stats.min_track_record_length(rs, sr_b, ALPHA, rf) / p,
+        "mintrl_vs_bnh_years": sdt["mintrl"] / p,
         "random_null_mean": rnd["null_mean"],
         "p_random": rnd["p_value"],
         "n_trades": rnd["n_segments"],
@@ -206,7 +214,7 @@ def _notebook_window(ctx: Context, n_boot: int) -> dict:
     start, end = NOTEBOOK_WINDOW
     res, bnh = ctx.pair("NVDA", EMACrossover(50, 200), start=start, end=end)
     p = res.periods_per_year
-    sr_b = stats.sharpe_per_period(bnh.returns, res.rf)
+    sdt = stats.sharpe_difference_test(res.returns, bnh.returns, res.rf, ALPHA)
     boot = stats.bootstrap_sharpe_difference(
         res.returns, bnh.returns, rf=res.rf, n_boot=n_boot, mean_block=MEAN_BLOCK, periods=p
     )
@@ -221,7 +229,41 @@ def _notebook_window(ctx: Context, n_boot: int) -> dict:
         "ci_high": boot["ci_high"],
         "p": boot["p_value"],
         "psr_vs_0": stats.probabilistic_sharpe_ratio(res.returns, 0.0, res.rf),
-        "mintrl_vs_bnh_years": stats.min_track_record_length(res.returns, sr_b, ALPHA, res.rf) / p,
+        "mintrl_vs_bnh_years": sdt["mintrl"] / p,
+    }
+
+
+def _ann_sharpe(r: pd.Series, rf: pd.Series, periods: int) -> float:
+    return float(stats.annualize_sharpe(stats.sharpe_per_period(r, rf), periods))
+
+
+def _late_window(ctx: Context, ticker: str, res, bnh) -> dict:
+    """Sharpe gap on section 3's common window and what the earlier full-history start adds.
+
+    Section 3 evaluates its whole (fast, slow) grid on one window that opens after
+    the slowest rule (EMA 400) is warmed up; this re-runs EMA 50/200 vs buy-and-hold
+    from that date and measures both legs over the full-history bars it drops.
+    """
+    late_start = engine.evaluation_start(
+        ctx.prices(ticker), validation.parameter_grid(E03_FAST, E03_SLOW)
+    )
+    late, late_bnh = ctx.pair(ticker, EMACrossover(50, 200), start=late_start)
+    p = res.periods_per_year
+    drop = res.returns.index < late.start
+    seg_s, seg_b = res.returns[drop], bnh.returns.reindex(res.returns.index)[drop]
+    full_diff = _ann_sharpe(res.returns, res.rf, p) - _ann_sharpe(bnh.returns, bnh.rf, p)
+    late_diff = _ann_sharpe(late.returns, late.rf, p) - _ann_sharpe(
+        late_bnh.returns, late_bnh.rf, p
+    )
+    return {
+        "full_start": res.start,
+        "late_start": late.start,
+        "full_diff": full_diff,
+        "late_diff": late_diff,
+        "seg_first": seg_s.index[0] if len(seg_s) else pd.NaT,
+        "seg_last": seg_s.index[-1] if len(seg_s) else pd.NaT,
+        "seg_rule": metrics.total_return(seg_s) if len(seg_s) else float("nan"),
+        "seg_bnh": metrics.total_return(seg_b) if len(seg_b) else float("nan"),
     }
 
 
@@ -463,6 +505,9 @@ def run(ctx: Context) -> Section:
     ctx.save_table(f"{NAME}_mdd_blocks", sens_tab)
 
     nb = _notebook_window(ctx, n_boot)
+    late = {
+        tk: _late_window(ctx, tk, extras[tk]["res"], extras[tk]["bnh"]) for tk in LATE_WINDOW_ASSETS
+    }
     spy = df.loc["SPY"]
     spy_rnd = extras["SPY"]["random"]
 
@@ -629,6 +674,48 @@ def run(ctx: Context) -> Section:
             "percentile test; we report the more conservative percentile version."
         )
     psr0_txt = "> 0.999" if spy["psr_vs_0"] >= 0.9995 else f"= {spy['psr_vs_0']:.3f}"
+    # timing: name the raw random-entry rejections from the data, SPY as its own clause
+    rnd_raw = df.index[df["p_random"] < ALPHA]
+    if len(rnd_raw) == 0:
+        rnd_clause = "random entry is rejected at 5% on none, even before correction"
+    else:
+        named = ", ".join(f"{tk} p {_peq(df.loc[tk, 'p_random'])}" for tk in rnd_raw)
+        rnd_clause = (
+            f"random entry is rejected at 5% on only {len(rnd_raw)} ({named}), {n_rnd_bh} after BH"
+        )
+    spy_rnd_clause = (
+        f"SPY: {spy['sharpe_strat']:.2f} vs a random-timing mean of "
+        f"{spy['random_null_mean']:.2f}, p {_peq(spy['p_random'])}"
+    )
+
+    # section 3 evaluates on a later common window (after the EMA 400 warm-up)
+    def late_clause(tk: str) -> str:
+        lw = late[tk]
+        start = f"{lw['late_start']:%b %Y}"
+        seg = (
+            f"{lw['seg_first']:%b %Y}-{lw['seg_last']:%b %Y} (rule {lw['seg_rule']:+.1%} vs "
+            f"buy-and-hold {lw['seg_bnh']:+.1%})"
+        )
+        full, lt = lw["full_diff"], lw["late_diff"]
+        if abs(full - lt) < 0.05:
+            return (
+                f"{tk}'s {full:+.2f} barely depends on the start: from {start} the gap is "
+                f"{lt:+.2f}."
+            )
+        if np.sign(lt) != np.sign(full) or abs(lt) < abs(full) / 2:
+            return f"{tk}'s {full:+.2f} rests on {seg}; from {start} the gap is {lt:+.2f}."
+        return (
+            f"{tk}'s gap is {full:+.2f} on the full history and {lt:+.2f} from {start} "
+            f"(the dropped bars are {seg})."
+        )
+
+    late_starts = ", ".join(f"{tk} {late[tk]['late_start']:%Y-%m}" for tk in LATE_WINDOW_ASSETS)
+    late_txt = " ".join(
+        late_clause(tk)
+        for tk in sorted(
+            LATE_WINDOW_ASSETS, key=lambda k: -abs(late[k]["full_diff"] - late[k]["late_diff"])
+        )
+    )
     yrs_word = word(np.isfinite(med_mintrl) and med_mintrl >= 100, "centuries", "years")
     text = f"""**Question.** After accounting for sampling noise, the rule's trade structure and testing {m} assets at once, is there reliable evidence that EMA 50/200 beats buy-and-hold?
 
@@ -638,9 +725,10 @@ def run(ctx: Context) -> Section:
 
 - The rule has the higher Sharpe on {n_pos} of {m} assets, but {sig_clause}. The median 95% CI is {med_ci_width:.2f} Sharpe units wide against a median absolute difference of {med_abs_diff:.2f}. The largest gap ({best}, {df.loc[best, "sharpe_diff"]:+.2f}) has p {_peq(df.loc[best, "p_boot"])}, BH q {_peq(df.loc[best, "q_boot_bh"])}.
 - SPY: Sharpe {spy["sharpe_strat"]:.2f} vs {spy["sharpe_bnh"]:.2f}, difference CI {_ci(spy["diff_ci_low"], spy["diff_ci_high"])}, p {_peq(spy["p_boot"])} ({word(spy_sig, "significant", "not significant")}). PSR: P(SR > 0) {psr0_txt}, but P(SR > B&H) = {spy["psr_vs_bnh"]:.2f}; MinTRL to confirm the gap is {_yrs(spy["mintrl_vs_bnh_years"])} years (median finite {_yrs(med_mintrl)}; infinite on the {n_inf_mintrl} assets where the rule trails).
-- Timing: the rule beats the random-timing mean on {n_beat_null} of {m} assets, but random entry is rejected at 5% on only {n_rnd_raw}, {n_rnd_bh} after BH (SPY {spy["sharpe_strat"]:.2f} vs {spy["random_null_mean"]:.2f}, p {_peq(spy["p_random"])}).
+- Timing: the rule beats the random-timing mean on {n_beat_null} of {m} assets, but {rnd_clause}. {spy_rnd_clause}.
 - Lo (2002) Sharpes are a median {med_lo:.2f}x (rule) and {med_lo_b:.2f}x (B&H) the naive ones, {lo_clause}; {flip_clause}.
 - Risk: max drawdown is shallower on {n_mdd_shallower} of {m} assets (SPY {_pct(spy["mdd_a"], 0)} vs {_pct(spy["mdd_b"], 0)}, difference CI {_ci(spy["mdd_ci_low"], spy["mdd_ci_high"], True)}), significant after BH on {n_mdd_bh} ({pct_counts} with {blk_str}-day blocks). Volatility is significantly lower on {n_vol_bh} of {m}. Against a static mix with the same average exposure, drawdowns are shallower on {n_mix_better} of {m}, {n_mix_bh} significantly.
+- Start date: section 3 compares grid cells on a common window that opens after the EMA 400 warm-up ({late_starts}), later than the full-history start used here. {late_txt}
 - The notebook's own sample (NVDA {NOTEBOOK_WINDOW[0][:4]}-{NOTEBOOK_WINDOW[1][:4]}, {nb["years"]:.1f} years): Sharpe difference {nb["diff"]:+.2f}, CI {_ci(nb["ci_low"], nb["ci_high"])}, p {_peq(nb["p"])}, MinTRL {_yrs(nb["mintrl_vs_bnh_years"])} years.
 
 **Interpretation.** Even with the two return streams {med_corr:.2f} correlated, the paired bootstrap leaves a standard error of about {se_diff:.2f} on the Sharpe difference, so gaps of 0.1-0.2 are noise; MinTRL (Bailey & Lopez de Prado 2012) converts that into {yrs_word}. Quoting the best of {m} assets is the data-snooping trap of Sullivan, Timmermann & White (1999), and Holm/BH are the minimum haircut (Harvey & Liu 2015). Random in-and-out timing at exposure e earns about √e times B&H's Sharpe (median ratio {null_ratio:.2f}), because the mean scales with e and volatility with √e. Beating that null is a lower bar than beating B&H, and it is cleared significantly on {word(n_rnd_bh == 0, "no asset", f"only {n_rnd_bh} asset(s)")} after correction. {risk_text} Lower volatility is close to mechanical, and an exposure-matched static mix delivers a median {_pct(mix_share, 0)} of the drawdown gap with no timing at all. The defensible claim is "similar risk-adjusted return, smaller drawdowns", not "alpha".
@@ -655,8 +743,11 @@ def run(ctx: Context) -> Section:
         "Benjamini-Hochberg controls the expected share of false discoveries and is valid "
         "under independence or positive regression dependence (Benjamini & Yekutieli 2001). "
         "Equity tests are positively dependent, but bond and equity tests need not be. "
-        f"{dep_note} PSR against B&H treats B&H's Sharpe as a known constant, so it overstates "
-        "confidence relative to the paired bootstrap, which resamples both legs together. The "
+        f"{dep_note} PSR and MinTRL against B&H are paired (`sharpe_difference_test`): the "
+        "variance of the Sharpe difference uses both legs' skewness and kurtosis and their "
+        f"correlation (median {med_corr:.2f}; Jobson-Korkie / Memmel 2003 covariance term), "
+        "rather than treating B&H's estimated Sharpe as a known constant. Unlike the paired "
+        "bootstrap they assume serially independent returns. The "
         "Sharpe p-value centres the bootstrap distribution on zero. The drawdown distribution "
         "is skewed and sits below the full-sample estimate, which is why the forest plot's "
         "drawdown points sit near the top of their CIs. The drawdown and volatility p-values "
@@ -739,6 +830,13 @@ def run(ctx: Context) -> Section:
         "notebook_nvda_ci_high": nb["ci_high"],
         "notebook_nvda_p": nb["p"],
         "notebook_nvda_mintrl_vs_bnh_years": nb["mintrl_vs_bnh_years"],
+        "qqq_late_window_start": late["QQQ"]["late_start"],
+        "spy_late_window_start": late["SPY"]["late_start"],
+        "qqq_full_sharpe_diff": late["QQQ"]["full_diff"],
+        "qqq_late_window_sharpe_diff": late["QQQ"]["late_diff"],
+        "spy_late_window_sharpe_diff": late["SPY"]["late_diff"],
+        "qqq_dropped_segment_rule_return": late["QQQ"]["seg_rule"],
+        "qqq_dropped_segment_bnh_return": late["QQQ"]["seg_bnh"],
     }
 
     return Section(
@@ -784,8 +882,6 @@ def run(ctx: Context) -> Section:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    t0 = time.time()
     s = run(Context())
     print(s.text)
     print(s.results)
-    print(f"{time.time() - t0:.1f}s")
