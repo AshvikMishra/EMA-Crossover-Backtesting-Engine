@@ -63,8 +63,9 @@ def sortino(returns: pd.Series, rf=None, periods: int = 252) -> float:
 
 
 def drawdown_series(returns: pd.Series) -> pd.Series:
+    """Drawdown from the running peak, counting the starting capital (1.0) as a peak."""
     eq = equity_curve(returns)
-    return eq / eq.cummax() - 1.0
+    return eq / np.maximum(eq.cummax(), 1.0) - 1.0
 
 
 def max_drawdown(returns: pd.Series) -> float:

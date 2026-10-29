@@ -134,12 +134,13 @@ def evaluation_start(
     Matches :func:`run_backtest`: the window opens one bar after the first
     warmed-up decision.
     """
-    dates = [
-        prices.index[prices.index.get_loc(first_valid_decision(prices, s)) + 1] for s in strategies
-    ]
+    positions = [prices.index.get_loc(first_valid_decision(prices, s)) + 1 for s in strategies]
     if start is not None:
-        dates.append(prices.index[prices.index.searchsorted(pd.Timestamp(start))])
-    return max(dates)
+        positions.append(int(prices.index.searchsorted(pd.Timestamp(start))))
+    pos = max(positions)
+    if pos >= len(prices.index):
+        raise ValueError("evaluation window would start after the last bar")
+    return prices.index[pos]
 
 
 def _resolve_rf(index: pd.DatetimeIndex, rf_yield, earn: bool) -> pd.Series:
@@ -225,7 +226,7 @@ def run_backtest(
         target=target.iloc[sl].rename("target"),
         turnover=pd.Series(turnover, index=idx, name="turnover"),
         costs=pd.Series(cost, index=idx, name="costs"),
-        asset_returns=gross.iloc[sl].rename("asset"),
+        asset_returns=gross.iloc[sl].where(idx != idx[0], 0.0).rename("asset"),
         rf=pd.Series(rf, index=idx, name="rf"),
         config=config,
         periods_per_year=periods_per_year(prices.index),
@@ -242,13 +243,17 @@ def extract_trades(
 
     ``return`` is the compounded *strategy* return over the run, including
     financing, the entry cost and (if ``costs`` is given) the exit cost booked
-    on the first bar after the run. ``asset_return`` is the underlying's move.
+    on the first bar after the run. At a direct long<->short flip the flip
+    bar's cost is split pro rata between the closing and the opening leg, so
+    the trades compound exactly to the equity curve. ``asset_return`` is the
+    underlying's move.
     """
     w = exposure.to_numpy()
     sign = np.sign(np.round(w, 12))
     r = returns.to_numpy()
     c = np.zeros(len(w)) if costs is None else costs.to_numpy()
     rows = []
+    carry = 0.0  # share of the current bar's cost already charged to the previous trade
     i, n = 0, len(w)
     while i < n:
         if sign[i] == 0:
@@ -257,9 +262,15 @@ def extract_trades(
         j = i
         while j + 1 < n and sign[j + 1] == sign[i]:
             j += 1
-        growth = np.prod(1.0 + r[i : j + 1])
+        growth = np.prod(1.0 + r[i : j + 1]) / (1.0 - carry)
+        carry = 0.0
         if j + 1 < n:
-            growth *= 1.0 - c[j + 1]
+            exit_cost = c[j + 1]
+            if sign[j + 1] != 0:  # flip: only the closing leg's share of the cost
+                dw = abs(w[j + 1] - w[j])
+                exit_cost = c[j + 1] * abs(w[j]) / dw if dw > 0 else 0.0
+                carry = exit_cost
+            growth *= 1.0 - exit_cost
         row = {
             "entry": exposure.index[i],
             "exit": exposure.index[j],
