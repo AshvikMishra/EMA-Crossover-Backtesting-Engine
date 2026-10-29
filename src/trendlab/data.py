@@ -12,8 +12,8 @@ Caveats worth knowing about the free data:
   records when each file was fetched.
 * ``auto_adjust=True`` adjusts OHLC for splits and dividends, so close-to-close
   returns are total returns.
-* DTB3 is quoted on a discount basis in percent; the difference to the
-  bond-equivalent yield is a few basis points and is ignored here.
+* DTB3 is quoted on a discount basis in percent; :func:`risk_free_yield`
+  converts it to an effective annual rate before it is accrued.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ import json
 import os
 import time
 import urllib.request
-from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
 
@@ -38,8 +37,10 @@ def _default_data_dir() -> Path:
     env = os.environ.get("TRENDLAB_DATA_DIR")
     if env:
         return Path(env)
-    # src/trendlab/data.py -> repo root
-    return Path(__file__).resolve().parents[2] / "data" / "raw"
+    root = Path(__file__).resolve().parents[2]  # src/trendlab/data.py -> repo root
+    if (root / "pyproject.toml").exists():
+        return root / "data" / "raw"
+    return Path.cwd() / "data" / "raw"  # non-editable install: use the working directory
 
 
 DATA_DIR = _default_data_dir()
@@ -138,12 +139,6 @@ def load_prices(
     return df.loc[start:end].copy()
 
 
-def load_universe(
-    tickers: Iterable[str], start: str | None = None, end: str | None = None, **kwargs
-) -> dict[str, pd.DataFrame]:
-    return {t: load_prices(t, start, end, **kwargs) for t in tickers}
-
-
 def load_fred(
     series: str,
     *,
@@ -176,9 +171,22 @@ def load_fred(
     return df[series]
 
 
+def discount_to_effective(d: pd.Series | float, days: int = 91) -> pd.Series | float:
+    """Convert a T-bill discount-basis yield to an effective annual (compounded) rate.
+
+    A bill bought at ``1 - d * days/360`` pays 1 after ``days``; compounding that
+    holding-period return over a 365-day year gives the effective rate.
+    """
+    return (1.0 / (1.0 - d * days / 360.0)) ** (365.0 / days) - 1.0
+
+
 def risk_free_yield(**kwargs) -> pd.Series:
-    """Annualised 3-month T-bill yield as a decimal (0.05 == 5%), forward-filled daily."""
-    y = load_fred("DTB3", **kwargs).dropna() / 100.0
+    """Effective annual 3-month T-bill yield (0.05 == 5%), forward-filled daily.
+
+    FRED's DTB3 is quoted on a discount basis; it is converted with
+    :func:`discount_to_effective` (about +10 bp on average, +25 bp at 5% rates).
+    """
+    y = discount_to_effective(load_fred("DTB3", **kwargs).dropna() / 100.0)
     full = pd.date_range(y.index[0], pd.Timestamp.today().normalize(), freq="D")
     return y.reindex(full).ffill()
 

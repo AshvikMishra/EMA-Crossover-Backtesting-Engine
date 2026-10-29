@@ -16,6 +16,7 @@ Default research settings (fixed up front, not tuned):
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -33,7 +34,14 @@ from ..strategies import BuyAndHold, Strategy  # noqa: E402
 from ..universe import ASSETS, RESEARCH_END  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-REPORTS_DIR = REPO_ROOT / "reports"
+REPORTS_DIR = Path(
+    os.environ.get(
+        "TRENDLAB_REPORTS_DIR",
+        REPO_ROOT / "reports"
+        if (REPO_ROOT / "pyproject.toml").exists()
+        else Path.cwd() / "reports",
+    )
+)
 
 ETF_COSTS = CostModel(commission_bps=1.0, half_spread_bps=2.0, slippage_bps=2.0)
 CRYPTO_COSTS = CostModel(commission_bps=10.0, half_spread_bps=2.5, slippage_bps=2.5)
@@ -104,7 +112,9 @@ class Context:
         return BacktestConfig(**kw)
 
     def backtest(self, ticker: str, strategy: Strategy, **overrides) -> BacktestResult:
-        return run_backtest(self.prices(ticker), strategy, self.config(ticker, **overrides), self.rf)
+        return run_backtest(
+            self.prices(ticker), strategy, self.config(ticker, **overrides), self.rf
+        )
 
     def pair(
         self, ticker: str, strategy: Strategy, **overrides

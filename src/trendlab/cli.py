@@ -107,11 +107,17 @@ def main(argv: list[str] | None = None) -> int:
     b.set_defaults(func=_cmd_backtest)
 
     args = p.parse_args(argv)
+    if args.cmd == "backtest" and args.fast >= args.slow:
+        b.error("--fast must be smaller than --slow")
     if getattr(args, "out", None) is None and args.cmd == "run":
         from .experiments.common import REPORTS_DIR
 
         args.out = REPORTS_DIR
-    return args.func(args)
+    try:
+        return args.func(args)
+    except (FileNotFoundError, ValueError, RuntimeError) as err:
+        print(f"trendlab: error: {err}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

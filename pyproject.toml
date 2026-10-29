@@ -9,7 +9,7 @@ description = "A bias-aware backtesting engine and research study of EMA-crossov
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Ashvik Mishra", email = "ashvikmishra.mit@gmail.com" }]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.26",
     "pandas>=2.2",
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6", "jupyter", "nbconvert"]
+dev = ["pytest>=8", "ruff>=0.17,<0.18", "jupyter", "nbconvert"]
 
 [project.scripts]
 trendlab = "trendlab.cli:main"
@@ -34,7 +34,7 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "NPY"]

@@ -354,3 +354,18 @@ def test_trial_sharpes_ignore_warmup_nans():
     assert np.isfinite(ts).all()
     assert ts.iloc[1] == pytest.approx(stats.sharpe_per_period(df.iloc[50:, 1]))
     assert stats.deflated_sharpe_ratio(df[0], ts)["n_trials"] == 3
+
+
+def test_sharpe_difference_test_uses_paired_variance():
+    from trendlab.stats import probabilistic_sharpe_ratio, sharpe_difference_test
+
+    rng = np.random.default_rng(7)
+    common = rng.normal(0.0004, 0.01, 5000)
+    a = common + rng.normal(0.0002, 0.004, 5000)
+    out = sharpe_difference_test(a, common)
+    assert 0.8 < out["rho"] < 1.0
+    unpaired = probabilistic_sharpe_ratio(a, sr_benchmark=out["sr_b"])
+    # the paired test is more confident than treating SR_b as a known constant
+    assert out["psr"] > unpaired
+    assert np.isfinite(out["mintrl"]) and out["mintrl"] > 1
+    assert sharpe_difference_test(common, a)["mintrl"] == float("inf")

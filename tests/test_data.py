@@ -137,9 +137,10 @@ def test_risk_free_yield_from_cached_fred(tmp_path):
     pd.DataFrame({"DTB3": [5.0, np.nan, 4.0]}, index=idx).to_parquet(tmp_path / "FRED_DTB3.parquet")
     y = risk_free_yield(offline=True, data_dir=tmp_path)
     assert y.index.freqstr == "D"
-    assert y.loc["2024-01-02"] == pytest.approx(0.05)
-    assert y.loc["2024-01-04"] == pytest.approx(0.05)  # NaN dropped, then forward-filled
-    assert y.loc["2024-01-05"] == pytest.approx(0.04)
+    e5, e4 = data.discount_to_effective(0.05), data.discount_to_effective(0.04)
+    assert y.loc["2024-01-02"] == pytest.approx(e5)  # discount basis -> effective annual
+    assert y.loc["2024-01-04"] == pytest.approx(e5)  # NaN dropped, then forward-filled
+    assert y.loc["2024-01-05"] == pytest.approx(e4)
     assert y.index[-1] == pd.Timestamp.today().normalize()
 
 
@@ -150,3 +151,11 @@ def test_committed_cache_loads_offline():
     assert list(spy.columns) == data.OHLCV
     assert spy.index.is_monotonic_increasing and (spy["Close"] > 0).all()
     assert periods_per_year(spy.index) == 252
+
+
+def test_discount_to_effective_exceeds_discount_yield():
+    from trendlab.data import discount_to_effective
+
+    assert discount_to_effective(0.0) == 0.0
+    eff = discount_to_effective(0.05)
+    assert 0.0520 < eff < 0.0530  # ~ +23 bp at 5%

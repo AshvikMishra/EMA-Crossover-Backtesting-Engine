@@ -130,6 +130,48 @@ def min_track_record_length(
     return float(1.0 + denom * (norm.ppf(1.0 - alpha) / (sr - sr_benchmark)) ** 2)
 
 
+def sharpe_difference_test(returns_a, returns_b, rf=None, alpha: float = 0.05) -> dict:
+    """Paired PSR and MinTRL for ``SR_a - SR_b`` of two return series on the same dates.
+
+    Unlike :func:`probabilistic_sharpe_ratio` with ``sr_benchmark = SR_b``, this
+    does not treat the benchmark's *estimated* Sharpe as a known constant: the
+    per-observation variance of the difference is
+
+        V = V_a + V_b - 2 * (rho + SR_a * SR_b * rho**2 / 2)
+
+    with ``V_i = 1 - g3_i SR_i + (g4_i - 1)/4 SR_i**2`` (Mertens 2002, as in the
+    PSR) and the Jobson-Korkie / Memmel (2003) covariance term. Highly
+    correlated series (a strategy and its own underlying) have a much smaller
+    ``V`` than ``V_a`` alone. Returns per-period ``sr_a``, ``sr_b``, ``rho``,
+    ``se`` (per period), ``psr`` = P(SR_a > SR_b) and ``mintrl`` (bars needed
+    for ``psr`` to reach ``1 - alpha``; inf if ``SR_a <= SR_b``).
+    """
+    xa, xb = _excess(returns_a, rf), _excess(returns_b, rf)
+    ok = np.isfinite(xa) & np.isfinite(xb)
+    xa, xb = xa[ok], xb[ok]
+    t = len(xa)
+    nan = float("nan")
+    if t < 3:
+        return {"sr_a": nan, "sr_b": nan, "rho": nan, "se": nan, "psr": nan, "mintrl": nan}
+    sa, g3a, g4a = _moments(xa)
+    sb, g3b, g4b = _moments(xb)
+    rho = float(np.corrcoef(xa, xb)[0, 1])
+    va = 1.0 - g3a * sa + (g4a - 1.0) / 4.0 * sa**2
+    vb = 1.0 - g3b * sb + (g4b - 1.0) / 4.0 * sb**2
+    v = max(va + vb - 2.0 * (rho + 0.5 * sa * sb * rho**2), 1e-12)
+    diff = sa - sb
+    psr = float(norm.cdf(diff * math.sqrt(t - 1) / math.sqrt(v)))
+    mintrl = float(1.0 + v * (norm.ppf(1.0 - alpha) / diff) ** 2) if diff > 0 else float("inf")
+    return {
+        "sr_a": sa,
+        "sr_b": sb,
+        "rho": rho,
+        "se": math.sqrt(v / (t - 1)),
+        "psr": psr,
+        "mintrl": mintrl,
+    }
+
+
 def expected_max_sharpe(sr_variance: float, n_trials: int) -> float:
     """Expected maximum of ``n_trials`` zero-mean Sharpe estimates with variance ``sr_variance``.
 
@@ -303,7 +345,11 @@ def pbo_cscv(
     is_m = np.where(np.isfinite(is_m), is_m, -np.inf)
     oos_m = np.where(np.isfinite(oos_m), oos_m, -np.inf)
     rows = np.arange(len(combos))
-    sel = np.argmax(is_m, axis=1)
+    # Configs that coincide over the IS blocks tie exactly; pick the lowest index
+    # among near-ties so the choice does not depend on summation order.
+    top = is_m.max(axis=1, keepdims=True)
+    tied = is_m >= top - 1e-10 * (1.0 + np.abs(top))
+    sel = np.argmax(tied, axis=1)
     v = oos_m[rows, sel]
     less = (oos_m < v[:, None]).sum(axis=1)
     ties = (oos_m == v[:, None]).sum(axis=1)
