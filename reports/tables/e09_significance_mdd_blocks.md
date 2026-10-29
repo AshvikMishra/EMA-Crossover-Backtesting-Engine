@@ -1,0 +1,7 @@
+| Mean block (days) | Resamples | Median resampled gap | Median actual gap | Sig. after BH (percentile p) | Sig. after BH (centred p) | SPY p (percentile) | SPY p (centred) |
+| :--- | ---: | ---: | ---: | :--- | :--- | ---: | ---: |
+| 20 | 5,000 | 10.9% | 18.2% | 0 of 12 | 10 of 12 | 0.163 | 0.006 |
+| 60 | 1,000 | 12.1% | 18.2% | 0 of 12 | 10 of 12 | 0.179 | 0.018 |
+| 125 | 1,000 | 14.3% | 18.2% | 0 of 12 | 8 of 12 | 0.167 | 0.043 |
+| 250 | 1,000 | 16.4% | 18.2% | 1 of 12 | 4 of 12 | 0.133 | 0.055 |
+
