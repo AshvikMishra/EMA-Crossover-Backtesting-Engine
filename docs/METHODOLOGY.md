@@ -9,7 +9,7 @@ and challenged.
 | Item | Source | Notes |
 |---|---|---|
 | Daily OHLCV | Yahoo Finance via `yfinance`, `auto_adjust=True` | Split- and dividend-adjusted, so close-to-close returns are total returns. Cached as parquet in `data/raw/`; `data/raw/manifest.json` records the fetch date. |
-| Risk-free rate | FRED `DTB3` (3-month T-bill, secondary market) | Discount-basis yield in percent; the few-bp difference to bond-equivalent yield is ignored. |
+| Risk-free rate | FRED `DTB3` (3-month T-bill, secondary market) | Discount-basis yield in percent, converted to an effective annual rate (about +10 bp on average, +25 bp at 5% rates) before it is accrued. |
 | Regime labels | Yahoo `^VIX` | Used only as a *lagged* label, never traded. |
 
 Known limitations of free data, and how they are handled:
