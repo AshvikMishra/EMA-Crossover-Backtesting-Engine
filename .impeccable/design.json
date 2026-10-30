@@ -1,0 +1,430 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-30T12:13:01+00:00",
+  "title": "Design System: trendlab research report",
+  "extensions": {
+    "colorMeta": {
+      "strategy-blue": {
+        "role": "primary",
+        "displayName": "Strategy Blue",
+        "canonical": "#2a78d6",
+        "oklch": "oklch(57.5% 0.163 255.5)",
+        "tonalRamp": [
+          "#104281",
+          "#184f95",
+          "#1c5cab",
+          "#256abf",
+          "#2a78d6",
+          "#5598e7",
+          "#9ec5f4",
+          "#cde2fb"
+        ],
+        "note": "Ramp taken from the project's sequential scale in src/trendlab/plotting.py."
+      },
+      "benchmark-grey": {
+        "role": "secondary",
+        "displayName": "Benchmark Grey",
+        "canonical": "#999891",
+        "oklch": "oklch(67.8% 0.010 100.1)",
+        "tonalRamp": [
+          "#0b0b09",
+          "#262522",
+          "#43423e",
+          "#62615b",
+          "#83827c",
+          "#a6a5a0",
+          "#cac9c5",
+          "#efeeec"
+        ]
+      },
+      "below-ochre": {
+        "role": "secondary",
+        "displayName": "Below-Benchmark Ochre",
+        "canonical": "#b8860b",
+        "oklch": "oklch(65.2% 0.132 81.6)",
+        "tonalRamp": [
+          "#150800",
+          "#372000",
+          "#5b3b00",
+          "#835800",
+          "#a67a12",
+          "#c49f5b",
+          "#e2c592",
+          "#ffecc9"
+        ]
+      },
+      "heatmap-sand": {
+        "role": "secondary",
+        "displayName": "Heatmap Sand",
+        "canonical": "#c99a2e",
+        "oklch": "oklch(71.2% 0.131 83.7)",
+        "tonalRamp": [
+          "#150800",
+          "#362000",
+          "#5a3c00",
+          "#815900",
+          "#a47b13",
+          "#c2a05b",
+          "#e0c692",
+          "#ffecc9"
+        ]
+      },
+      "examination-carmine": {
+        "role": "tertiary",
+        "displayName": "Examination Carmine",
+        "canonical": "#b3261e",
+        "oklch": "oklch(50.1% 0.178 28.7)",
+        "tonalRamp": [
+          "#210000",
+          "#4a0604",
+          "#791913",
+          "#aa2e24",
+          "#d25346",
+          "#ec8375",
+          "#ffb1a4",
+          "#ffded5"
+        ]
+      },
+      "bond-paper": {
+        "role": "neutral",
+        "displayName": "Bond Paper",
+        "canonical": "#fcfcfb",
+        "oklch": "oklch(99.1% 0.001 106.4)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424241",
+          "#616160",
+          "#828281",
+          "#a5a5a4",
+          "#c9c9c8",
+          "#eeeeee"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#0b0b0b",
+        "oklch": "oklch(15.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "ink-secondary": {
+        "role": "neutral",
+        "displayName": "Secondary Ink",
+        "canonical": "#52514e",
+        "oklch": "oklch(43.5% 0.005 91.5)",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252523",
+          "#434240",
+          "#62615e",
+          "#83827f",
+          "#a6a5a2",
+          "#cac9c7",
+          "#efeeed"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "canonical": "#898781",
+        "oklch": "oklch(62.3% 0.009 91.5)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#262522",
+          "#43423e",
+          "#63615c",
+          "#84827d",
+          "#a6a5a0",
+          "#cac9c5",
+          "#efeeec"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#e1e0d9",
+        "oklch": "oklch(90.6% 0.009 100.0)",
+        "tonalRamp": [
+          "#0b0b09",
+          "#262522",
+          "#43423e",
+          "#62615c",
+          "#83827d",
+          "#a6a5a0",
+          "#cac9c5",
+          "#efeeec"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Strong Rule",
+        "canonical": "#c3c2b7",
+        "oklch": "oklch(81.2% 0.015 102.5)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#262521",
+          "#43423c",
+          "#626259",
+          "#848379",
+          "#a6a59e",
+          "#cac9c3",
+          "#efefea"
+        ]
+      },
+      "wash": {
+        "role": "neutral",
+        "displayName": "Wash",
+        "canonical": "#f3f3f0",
+        "oklch": "oklch(96.3% 0.004 106.5)",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#424240",
+          "#61615f",
+          "#828280",
+          "#a5a5a3",
+          "#c9c9c7",
+          "#eeeeed"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The claim line only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page title."
+      },
+      "headline-section": {
+        "displayName": "Headline Section",
+        "purpose": "Section heads, over a strong rule."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Finding headings."
+      },
+      "standfirst": {
+        "displayName": "Standfirst",
+        "purpose": "Two-sentence summary under the title."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose, 40rem max, hyphenated."
+      },
+      "note": {
+        "displayName": "Note",
+        "purpose": "Margin notes and chart readouts."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Running head, tables, captions, readout grids, colophon."
+      },
+      "label-strong": {
+        "displayName": "Label Strong",
+        "purpose": "Chart titles, table captions, readout heads."
+      },
+      "verdict": {
+        "displayName": "Verdict",
+        "purpose": "The verdict mark only, uppercase."
+      },
+      "provenance": {
+        "displayName": "Provenance",
+        "purpose": "Source lines under headline numbers."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Inline code and results keys."
+      }
+    },
+    "shadows": [
+      {
+        "name": "table-scroll-cue",
+        "value": "linear-gradient(to right, rgba(11,11,11,0.14), rgba(11,11,11,0)) left / 0.9rem 100% no-repeat scroll",
+        "purpose": "Edge cue on horizontally overflowing tables only; the system is otherwise flat."
+      },
+      {
+        "name": "label-halo",
+        "value": "paint-order: stroke; stroke: #fcfcfb; stroke-width: 4px",
+        "purpose": "Paper halo behind chart value labels so they read over marks and gridlines."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-draw",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "First-view chart draw."
+      },
+      {
+        "name": "draw-bars",
+        "value": "520ms",
+        "purpose": "Bars and heatmap cells scale in once on first view."
+      },
+      {
+        "name": "draw-lines",
+        "value": "900ms",
+        "purpose": "Line series dash-reveal once on first view."
+      },
+      {
+        "name": "state",
+        "value": "160ms ease-out",
+        "purpose": "Link underline, toggle and mark-dim transitions."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "All transitions off under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow-margin",
+        "value": "1080px"
+      },
+      {
+        "name": "single-column",
+        "value": "920px"
+      },
+      {
+        "name": "figure-scroll",
+        "value": "720px"
+      },
+      {
+        "name": "phone",
+        "value": "520px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Verdict Mark",
+      "kind": "chip",
+      "refersTo": "verdict-mark",
+      "description": "One-word typographic state mark beside each finding; never colour-coded.",
+      "html": "<p class=\"ds-verdict\">Not significant</p>",
+      "css": ".ds-verdict { display: inline-block; margin: 0; font: 700 0.7rem/1 \"Helvetica Neue\", Helvetica, Arial, \"Liberation Sans\", sans-serif; letter-spacing: 0.09em; text-transform: uppercase; color: #0b0b0b; background: transparent; border: 1px solid #0b0b0b; padding: 0.35rem 0.5rem 0.3rem; }"
+    },
+    {
+      "name": "Chart Toggle",
+      "kind": "button",
+      "refersTo": "chart-toggle",
+      "description": "Series or asset switch above an interactive chart; pressed state fills with ink.",
+      "html": "<div class=\"ds-toggles\"><button class=\"ds-toggle\" aria-pressed=\"true\">SPY</button><button class=\"ds-toggle\" aria-pressed=\"false\">QQQ</button><button class=\"ds-toggle\" aria-pressed=\"false\">BTC</button></div>",
+      "css": ".ds-toggles { display: flex; gap: 0.3rem; } .ds-toggle { font: 0.75rem/1 \"Helvetica Neue\", Helvetica, Arial, \"Liberation Sans\", sans-serif; color: #52514e; background: transparent; border: 1px solid #c3c2b7; border-radius: 2px; padding: 0.4rem 0.55rem; cursor: pointer; transition: border-color 160ms ease-out, color 160ms ease-out; } .ds-toggle:hover { color: #0b0b0b; border-color: #52514e; } .ds-toggle:focus-visible { outline: 2px solid #2a78d6; outline-offset: 3px; } .ds-toggle[aria-pressed=\"true\"] { color: #fcfcfb; background: #0b0b0b; border-color: #0b0b0b; }"
+    },
+    {
+      "name": "Running Head",
+      "kind": "nav",
+      "refersTo": "running-head-link",
+      "description": "Sans bibliographic header with project, data date and nav; current page underlined in ink.",
+      "html": "<header class=\"ds-rh\"><a class=\"ds-rh-title\" href=\"#\">EMA-Crossover-Backtesting-Engine</a><span class=\"ds-rh-meta\">Research report · data through 2026-10-28</span><nav class=\"ds-rh-nav\"><a href=\"#\" aria-current=\"page\">Findings</a><a href=\"#\">Studies</a><a href=\"#\">Methodology</a><a href=\"#\">Source</a></nav></header>",
+      "css": ".ds-rh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1.25rem; padding: 1rem 0 0.9rem; border-bottom: 1px solid #e1e0d9; font: 0.8125rem/1.3 \"Helvetica Neue\", Helvetica, Arial, \"Liberation Sans\", sans-serif; color: #52514e; background: #fcfcfb; } .ds-rh-title { color: #0b0b0b; font-weight: 700; text-decoration: none; } .ds-rh-nav { margin-left: auto; display: flex; gap: 1.25rem; } .ds-rh-nav a { color: #52514e; text-decoration: none; padding: 0.2rem 0; border-bottom: 1px solid transparent; } .ds-rh-nav a:hover { color: #0b0b0b; border-bottom-color: #c3c2b7; } .ds-rh-nav a:focus-visible { outline: 2px solid #2a78d6; outline-offset: 3px; } .ds-rh-nav a[aria-current=\"page\"] { color: #0b0b0b; border-bottom-color: #0b0b0b; }"
+    },
+    {
+      "name": "Claim Line",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Display-size correction: original claim struck in carmine, arrow, corrected figure in ink, benchmark in sans grey.",
+      "html": "<p class=\"ds-claim\"><span class=\"ds-claim-old\">+505%</span><svg class=\"ds-claim-arrow\" viewBox=\"0 0 48 16\" aria-hidden=\"true\"><path d=\"M2 8h42M37 2l7 6-7 6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/></svg><span>+322%</span><span class=\"ds-claim-bnh\">buy &amp; hold +346%</span></p>",
+      "css": ".ds-claim { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 1.1rem; margin: 0; font: 400 3.6rem/1 \"ET Book\", \"Iowan Old Style\", Palatino, Georgia, serif; color: #0b0b0b; background: #fcfcfb; } .ds-claim-old { color: #b3261e; text-decoration: line-through; text-decoration-color: #b3261e; text-decoration-thickness: 0.06em; } .ds-claim-arrow { width: 2.6rem; height: 0.9rem; color: #52514e; align-self: center; flex: none; } .ds-claim-bnh { font: 1rem/1.2 \"Helvetica Neue\", Helvetica, Arial, \"Liberation Sans\", sans-serif; color: #52514e; align-self: center; }"
+    },
+    {
+      "name": "Margin Note with Provenance",
+      "kind": "card",
+      "refersTo": "margin-note",
+      "description": "Serif side-column explanation ending in a sans source line naming study and results key.",
+      "html": "<aside class=\"ds-note\"><p>Each bar removes one bias, cumulatively, on the same window. The grey line is buy-and-hold under the final settings.</p><span class=\"ds-prov\">Source: <a href=\"#\">e01</a> · <code>corrected_algo_return</code></span></aside>",
+      "css": ".ds-note { max-width: 17.5rem; font: 400 0.95rem/1.45 \"ET Book\", \"Iowan Old Style\", Palatino, Georgia, serif; color: #52514e; background: #fcfcfb; } .ds-note p { margin: 0 0 0.7rem; } .ds-prov { display: block; font: 0.75rem/1.4 \"Helvetica Neue\", Helvetica, Arial, \"Liberation Sans\", sans-serif; color: #52514e; } .ds-prov a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: rgba(11,11,11,0.32); text-underline-offset: 0.18em; transition: text-decoration-color 160ms ease-out; } .ds-prov a:hover { text-decoration-color: #2a78d6; } .ds-prov a:focus-visible { outline: 2px solid #2a78d6; outline-offset: 3px; } .ds-prov code { font: 0.72rem/1.3 ui-monospace, Menlo, monospace; background: #f3f3f0; padding: 0.08em 0.32em; border-radius: 3px; }"
+    },
+    {
+      "name": "Margin Readout",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Live side-column readout that a chart writes its selected mark's exact values into.",
+      "html": "<aside class=\"ds-ro-wrap\"><p class=\"ds-ro-head\">Warm-up</p><p class=\"ds-ro-what\">Seeding the EMAs before the window starts.</p><dl class=\"ds-ro\"><dt><span class=\"ds-sw\" style=\"background:#2a78d6\"></span>EMA50/200</dt><dd>281.2%</dd><dt><span class=\"ds-sw\" style=\"background:#b3261e\"></span>Bias removed</dt><dd>−223.9 pp</dd><dt><span class=\"ds-sw\" style=\"background:#999891\"></span>Buy &amp; hold</dt><dd>346.3%</dd></dl></aside>",
+      "css": ".ds-ro-wrap { max-width: 17.5rem; background: #fcfcfb; } .ds-ro-head { font: 700 0.8125rem/1.35 \"Helvetica Neue\", Helvetica, Arial, \"Liberation Sans\", sans-serif; color: #0b0b0b; margin: 0 0 0.35rem; } .ds-ro-what { font: 0.95rem/1.45 \"ET Book\", \"Iowan Old Style\", Palatino, Georgia, serif; color: #52514e; margin: 0; } .ds-ro { display: grid; grid-template-columns: auto 1fr; gap: 0.28rem 0.75rem; margin: 0.35rem 0 0.8rem; font: 0.8125rem/1.3 \"Helvetica Neue\", Helvetica, Arial, \"Liberation Sans\", sans-serif; font-variant-numeric: tabular-nums; } .ds-ro dt { color: #52514e; white-space: nowrap; } .ds-ro dd { margin: 0; color: #0b0b0b; text-align: right; } .ds-sw { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-right: 0.4rem; }"
+    },
+    {
+      "name": "Study Index Entry",
+      "kind": "card",
+      "refersTo": "",
+      "description": "Ruled list entry: sans study id, serif title, secondary-ink summary; hover underlines title in blue.",
+      "html": "<ul class=\"ds-studies\"><li><a href=\"#\"><span class=\"ds-sid\">e03</span><span class=\"ds-stitle\">Parameter robustness: is 50/200 a plateau or a lucky spike?</span></a><p>Is EMA50/200 a robust choice on a plateau of similar rules, or a lucky cell that does not survive the grid search?</p></li></ul>",
+      "css": ".ds-studies { list-style: none; padding: 0; margin: 0; background: #fcfcfb; } .ds-studies li { padding: 1.15rem 0 1rem; border-bottom: 1px solid #e1e0d9; } .ds-studies a { display: grid; grid-template-columns: 3.25rem 1fr; align-items: baseline; text-decoration: none; color: #0b0b0b; } .ds-studies a:hover .ds-stitle { text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: #2a78d6; text-underline-offset: 0.18em; } .ds-studies a:focus-visible { outline: 2px solid #2a78d6; outline-offset: 3px; } .ds-sid { font: 0.8125rem/1 \"Helvetica Neue\", Helvetica, Arial, \"Liberation Sans\", sans-serif; color: #52514e; } .ds-stitle { font: 1.35rem/1.3 \"ET Book\", \"Iowan Old Style\", Palatino, Georgia, serif; } .ds-studies p { margin: 0.35rem 0 0 3.25rem; font: 1.05rem/1.45 \"ET Book\", \"Iowan Old Style\", Palatino, Georgia, serif; color: #52514e; }"
+    },
+    {
+      "name": "Data Table",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Borderless sans table with tabular figures, ink header rule and hairline rows.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Asset</th><th class=\"num\">CAGR</th><th class=\"num\">Sharpe</th><th class=\"num\">MaxDD</th><th class=\"num\">B&amp;H MaxDD</th></tr></thead><tbody><tr><th>SPY</th><td class=\"num\">10.3%</td><td class=\"num\">0.59</td><td class=\"num\">−36.3%</td><td class=\"num\">−55.2%</td></tr><tr><th>QQQ</th><td class=\"num\">12.8%</td><td class=\"num\">0.69</td><td class=\"num\">−28.6%</td><td class=\"num\">−70.4%</td></tr></tbody></table>",
+      "css": ".ds-table { border-collapse: collapse; font: 0.8125rem/1.35 \"Helvetica Neue\", Helvetica, Arial, \"Liberation Sans\", sans-serif; font-variant-numeric: tabular-nums lining-nums; background: #fcfcfb; color: #0b0b0b; } .ds-table th, .ds-table td { padding: 0.42rem 0.8rem 0.42rem 0; text-align: left; border-bottom: 1px solid #e1e0d9; white-space: nowrap; } .ds-table thead th { font-weight: 700; color: #52514e; border-bottom: 1px solid #0b0b0b; vertical-align: bottom; } .ds-table tbody th { font-weight: 400; } .ds-table .num { text-align: right; padding-left: 0.8rem; } .ds-table tbody tr:hover td, .ds-table tbody tr:hover th { background: rgba(11,11,11,0.035); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Annotated Handout",
+    "overview": "**Creative North Star: \"The Annotated Handout\"**\n\nA printed research handout on bond paper, set in ET Book, with a wide right margin where every claim's provenance lives. The page is achromatic; colour appears only where data is, and one carmine ink is held back for the single thing under examination: the original +505% claim and the bias each correction removes. The tone is scholarly and plain. It argues against its own headline, so nothing on the page sells.\n\nDensity is a reading density, not a dashboard density: a 40rem text column at 1.25rem/1.55, a 17.5rem margin column, generous vertical air between findings (3.5rem) and sections (5.5rem). One master grid governs every page; the index, ten study pages and the methodology page differ only by their content and figures. State is expressed typographically (a boxed verdict word, a strike-through) rather than with hue.\n\nThe interactive charts are the signature. Pointing at or arrow-keying through any mark writes its exact values and provenance into the margin readout beside the chart; on narrow screens the readout folds inline beneath it.",
+    "keyCharacteristics": [
+      "Bond paper (#fcfcfb), near-black ink, no surfaces, no shadows, no cards.",
+      "ET Book (line figures) for prose and headings; a Helvetica-class grotesk for labels, nav, tables, chart text and provenance.",
+      "Text column plus margin column on one grid, folding to a single column at 920px.",
+      "Colour is data: strategy blue, buy-and-hold grey, ochre for below benchmark; carmine only for the claim under examination.",
+      "Every headline number carries a sans provenance line naming its study and results key."
+    ],
+    "rules": [
+      {
+        "name": "The One Red Rule",
+        "body": "Carmine marks only the claim under examination and the bias each step removes. No error states, no negative numbers, no emphasis, no decoration in red. The matplotlib palette deliberately carries no red-family hue for this reason.",
+        "section": "colors"
+      },
+      {
+        "name": "The Colour Is Data Rule",
+        "body": "The text field stays achromatic. A hue on the page must be standing in for a series; interface chrome uses ink, secondary ink and rules.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Voices Rule",
+        "body": "Serif is read, sans is consulted. Prose, headings and margin explanations are ET Book; anything tabular, numeric-in-a-grid, navigational or provenance is the grotesk. Headings never go bold; hierarchy is size.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Figures Rule",
+        "body": "Every number in a table, readout or chart label uses tabular figures, and the minus sign is a true minus (U+2212).",
+        "section": "typography"
+      },
+      {
+        "name": "The Paper Rule",
+        "body": "Nothing lifts off the page. If an element needs separating, use a 1px rule or white space, never a shadow, card or tinted panel.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** put every new page on the master grid (40rem text, 3rem gutter, 17.5rem margin) and put explanations and provenance in the margin column, not in the text column.",
+      "**Do** end any headline number with a sans provenance line naming its study and results key.",
+      "**Do** colour strategy series blue (#2a78d6) and benchmark series grey (#999891) in both the site's SVG charts and the matplotlib figures.",
+      "**Do** express a finding's state as a one-word verdict mark in an ink box.",
+      "**Do** write a chart's exact values into its margin readout on pointer and keyboard selection, and give every chart a data fallback.",
+      "**Do** use the grotesk with tabular figures for tables, chart text and readouts; ET Book for everything read.",
+      "**Do** draw charts once on first view and disable motion under prefers-reduced-motion."
+    ],
+    "donts": [
+      "**Don't** use carmine (#b3261e), or any red-family hue, for anything other than the claim under examination and the bias each step removes.",
+      "**Don't** colour-code verdicts or status; the word is the signal.",
+      "**Don't** add shadows, cards, tinted panels, KPI tiles or a dark hero.",
+      "**Don't** bold headings; hierarchy is size in ET Book at weight 400.",
+      "**Don't** use the eight-hue matplotlib categorical palette on the site's interactive charts; it exists for multi-series raster figures only.",
+      "**Don't** use muted (#898781) for running text; it is for list markers."
+    ]
+  }
+}
