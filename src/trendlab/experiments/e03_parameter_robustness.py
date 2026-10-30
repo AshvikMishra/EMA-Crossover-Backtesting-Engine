@@ -334,9 +334,7 @@ def _logit_chart(studies: dict, path, title: str, subtitle: str) -> None:
             ax = fig.add_subplot(gs[1, k])
             lg = st["pbo"]["logits"]
             below = lg <= 0
-            ax.hist(
-                lg[below], bins=bins, color=t["categorical"][7], alpha=0.75, label="Below median"
-            )
+            ax.hist(lg[below], bins=bins, color="#c99a2e", alpha=0.75, label="Below median")
             ax.hist(
                 lg[~below], bins=bins, color=t["categorical"][0], alpha=0.75, label="Above median"
             )
@@ -395,7 +393,7 @@ def run(ctx: Context) -> Section:
         sub = (
             f"Sharpe of EMA(fast) > EMA(slow), next-close fills, {ctx.config(tk).costs.bps:g} bp/side, "
             f"{row['start']} to {row['end']}\nColour centred on buy-and-hold Sharpe "
-            f"{row['bnh_sharpe']:.2f}: blue beats it, red trails it. Outlined cell = 50/200.\n"
+            f"{row['bnh_sharpe']:.2f}: blue beats it, ochre trails it. Outlined cell = 50/200.\n"
             f"Middle half of the grid: {row['grid_q25_sharpe']:.2f}–{row['grid_q75_sharpe']:.2f}, "
             f"vs 1 standard error of a Sharpe estimate ≈ {row['sharpe_se']:.2f}."
         )

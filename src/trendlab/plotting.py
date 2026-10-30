@@ -72,15 +72,16 @@ TOKENS: dict[str, dict] = {
         "benchmark": "#999891",
         "other": "#c3c2b7",
         "mid": "#f0efec",
+        # no red-family hues: red is reserved for the claim under examination on the site
         "categorical": [
             "#2a78d6",
-            "#eb6834",
+            "#b8860b",
             "#1baf7a",
-            "#eda100",
-            "#e87ba4",
-            "#008300",
+            "#5b6b7f",
             "#6250d6",
-            "#e34948",
+            "#008300",
+            "#0f6e6e",
+            "#7a5a0e",
         ],
     },
     "dark": {
@@ -929,7 +930,7 @@ def _luminance(rgb) -> float:
 
 def _diverging_cmap(t: dict) -> LinearSegmentedColormap:
     return LinearSegmentedColormap.from_list(
-        "trendlab_div", ["#a83232", t["categorical"][7], t["mid"], t["categorical"][0], "#184f95"]
+        "trendlab_div", ["#7a5a0e", "#c99a2e", t["mid"], t["categorical"][0], "#184f95"]
     )
 
 

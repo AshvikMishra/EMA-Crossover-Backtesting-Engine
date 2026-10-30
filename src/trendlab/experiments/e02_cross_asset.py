@@ -29,7 +29,7 @@ from ..report import df_to_markdown
 from ..stats import bootstrap_sharpe_difference
 from ..strategies import EMACrossover
 from ..universe import ASSETS, CORE
-from .common import Context, Section, costs_for
+from .common import Context, Section, costs_for, weekly_growth
 
 NAME = "e02_cross_asset"
 TITLE = "2. One rule, twelve markets: EMA50/200 across asset classes"
@@ -530,10 +530,18 @@ def run(ctx: Context) -> Section:
         results[f"{t}_maxdd"] = float(df.loc[t, "max_drawdown"])
         results[f"{t}_bnh_maxdd"] = float(df.loc[t, "bnh_max_drawdown"])
 
+    data = {
+        f"equity_{t}": weekly_growth(
+            {"strategy": curves[t]["res"].returns, "bnh": curves[t]["bnh"].returns}
+        )
+        for t in tickers
+    }
+
     return Section(
         name=NAME,
         title=TITLE,
         text=text,
+        data=data,
         figures=[
             ("Sharpe ratio per asset, rule vs buy & hold.", ctx.fig_path(f"{NAME}_sharpe")),
             (

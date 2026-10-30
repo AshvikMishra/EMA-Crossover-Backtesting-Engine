@@ -6,7 +6,7 @@ import importlib
 import time
 from pathlib import Path
 
-from .common import REPORTS_DIR, Context, Section, write_results
+from .common import REPORTS_DIR, Context, Section, write_results, write_sections
 
 EXPERIMENTS = [
     "e01_bias_waterfall",
@@ -82,6 +82,7 @@ def run_experiments(
         if verbose:
             print(f"[trendlab] {name:28s} {time.perf_counter() - t0:6.1f}s")
     write_results(sections, ctx.out_dir / "results.json")
+    write_sections(sections, ctx.out_dir)
     full = len(sections) == len(EXPERIMENTS)
     if verbose and not full:
         print("[trendlab] subset run: results.json updated, report.html not rebuilt")

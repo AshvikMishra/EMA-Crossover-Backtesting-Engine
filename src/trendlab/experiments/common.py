@@ -62,6 +62,7 @@ class Section:
     tables: list[tuple[str, pd.DataFrame]] = field(default_factory=list)
     after: str = ""
     results: dict[str, Any] = field(default_factory=dict)
+    data: dict[str, pd.DataFrame] = field(default_factory=dict)  # chart series for the website
 
     def as_report_section(self) -> dict:
         return {
@@ -140,6 +141,41 @@ def write_results(sections: list[Section], path: Path) -> None:
     existing = json.loads(path.read_text()) if path.exists() else {}
     existing.update(payload)
     path.write_text(json.dumps(existing, indent=2, sort_keys=True, default=_json_default) + "\n")
+
+
+def weekly_growth(series: dict[str, pd.Series]) -> pd.DataFrame:
+    """Growth of $1 from per-bar returns, sampled at week ends (compact chart data)."""
+    df = pd.DataFrame({k: (1.0 + v).cumprod() for k, v in series.items()})
+    return df.resample("W-FRI").last().dropna(how="all")
+
+
+def write_sections(sections: list[Section], out_dir: Path) -> None:
+    """Persist each section's text, figures, tables and chart data for the website.
+
+    ``sections/<name>.json`` holds the narrative and display tables (as HTML);
+    ``data/<name>__<key>.csv`` holds chart series.
+    """
+    from ..report import df_to_html
+
+    sec_dir, data_dir = out_dir / "sections", out_dir / "data"
+    sec_dir.mkdir(parents=True, exist_ok=True)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    for s in sections:
+        payload = {
+            "name": s.name,
+            "title": s.title,
+            "text": s.text,
+            "after": s.after,
+            "figures": [
+                {"caption": cap, "path": Path(path).relative_to(out_dir).as_posix()}
+                for cap, path in s.figures
+            ],
+            "tables": [{"caption": cap, "html": df_to_html(df)} for cap, df in s.tables],
+            "data": sorted(s.data),
+        }
+        (sec_dir / f"{s.name}.json").write_text(json.dumps(payload, indent=1) + "\n")
+        for key, df in s.data.items():
+            df.to_csv(data_dir / f"{s.name}__{key}.csv", float_format="%.6g")
 
 
 def _json_default(obj):

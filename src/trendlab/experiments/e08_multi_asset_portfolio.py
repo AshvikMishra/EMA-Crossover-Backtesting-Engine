@@ -48,7 +48,7 @@ from ..report import df_to_markdown
 from ..stats import bootstrap_sharpe_difference
 from ..strategies import BuyAndHold, EMACrossover, Strategy, TimeSeriesMomentum
 from ..universe import ASSETS, CORE
-from .common import ETF_COSTS, Context, Section, costs_for
+from .common import ETF_COSTS, Context, Section, costs_for, weekly_growth
 
 NAME = "e08_multi_asset_portfolio"
 TITLE = "8. Trend as a portfolio: ten markets instead of one stock"
@@ -718,6 +718,11 @@ def run(ctx: Context) -> Section:
         name=NAME,
         title=TITLE,
         text=text,
+        data={
+            "equity": weekly_growth(
+                {"trend": trend.returns, "sixty_forty": sixty.returns, "blend": blend_r}
+            )
+        },
         figures=[
             ("Trend book vs 60/40 vs the 80/20 blend: growth and drawdown", fig_eq),
             ("Stress years: calendar 2008, 2020 and 2022", fig_crisis),
