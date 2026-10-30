@@ -13,6 +13,19 @@ def _cmd_run(args) -> int:
     return 0
 
 
+def _cmd_site(args) -> int:
+    from pathlib import Path
+
+    from .experiments.common import REPO_ROOT, REPORTS_DIR
+    from .site import build_site
+
+    reports = Path(args.reports) if args.reports else REPORTS_DIR
+    out = Path(args.out) if args.out else REPO_ROOT / "site"
+    index = build_site(reports, out, repo_root=REPO_ROOT)
+    print(f"[trendlab] site -> {index}")
+    return 0
+
+
 def _cmd_list(_args) -> int:
     import importlib
 
@@ -86,6 +99,11 @@ def main(argv: list[str] | None = None) -> int:
     r.set_defaults(func=_cmd_run)
 
     sub.add_parser("list", help="list experiments").set_defaults(func=_cmd_list)
+
+    w = sub.add_parser("site", help="build the static report website from reports/")
+    w.add_argument("--reports", default=None, help="reports directory (default: reports/)")
+    w.add_argument("--out", default=None, help="output directory (default: site/)")
+    w.set_defaults(func=_cmd_site)
 
     f = sub.add_parser("fetch", help="download / refresh cached market data")
     f.add_argument("tickers", nargs="*")
